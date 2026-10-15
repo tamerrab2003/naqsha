@@ -45,3 +45,107 @@ pub fn install_menu(recent: &[String]) -> Option<Box<dyn std::any::Any>> {
     #[cfg(not(target_os = "macos"))]
     { let _ = recent; None }
 }
+
+/// Shortcut text as the current OS writes it: "⇧⌘Z" stays as is on macOS and becomes
+/// "Ctrl+Shift+Z" on Windows and Linux. Works on whole sentences ("Save (⌘S)").
+pub fn keys(s: &str) -> String {
+    if cfg!(target_os = "macos") { return s.to_string(); }
+    keys_pc(s)
+}
+
+pub fn keys_pc(s: &str) -> String {
+    let is_mod = |c: char| matches!(c, '⌘' | '⇧' | '⌥' | '⌃');
+    let mut out = String::with_capacity(s.len() + 8);
+    let mut it = s.chars().peekable();
+    while let Some(c) = it.next() {
+        if is_mod(c) {
+            let mut mods = vec![c];
+            while let Some(&n) = it.peek() { if is_mod(n) { mods.push(n); it.next(); } else { break; } }
+            let mut parts: Vec<&str> = vec![];
+            if mods.contains(&'⌘') || mods.contains(&'⌃') { parts.push("Ctrl"); }
+            if mods.contains(&'⌥') { parts.push("Alt"); }
+            if mods.contains(&'⇧') { parts.push("Shift"); }
+            out.push_str(&parts.join("+"));
+            // the key that follows, if any ("⌘ scroll" and "⇧ while…" have none)
+            match it.peek().copied() {
+                Some(k) if (!k.is_whitespace() && k != ')' && k != '-') || k_is_minus_key(&it) => {
+                    let k = it.next().unwrap();
+                    out.push('+');
+                    out.push_str(&key_name(k));
+                }
+                _ => {}
+            }
+        } else {
+            match c { '⌫' => out.push_str("Backspace"), '↩' => out.push_str("Enter"), _ => out.push(c) }
+        }
+    }
+    out
+}
+
+/// "⌘-" is Ctrl+Minus, but "⌥-drag" is Alt and a drag: a '-' is a key only at the end of a word.
+fn k_is_minus_key(it: &std::iter::Peekable<std::str::Chars>) -> bool {
+    let mut look = it.clone();
+    look.next() == Some('-') && look.peek().map_or(true, |c| c.is_whitespace() || *c == ')')
+}
+
+fn key_name(k: char) -> String {
+    match k {
+        '↓' => "Down".into(), '↑' => "Up".into(), '←' => "Left".into(), '→' => "Right".into(),
+        '↩' => "Enter".into(), '⌫' => "Backspace".into(),
+        c => c.to_ascii_uppercase().to_string(),
+    }
+}
+
+/// Where Naqsha keeps its own files (templates…): ~/Library/Application Support/Naqsha,
+/// %APPDATA%\Naqsha, or $XDG_DATA_HOME/naqsha (~/.local/share/naqsha).
+pub fn data_dir(legacy: bool) -> Option<PathBuf> {
+    let env = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
+    let (mac, other) = if legacy { ("Schemix", "schemix") } else { ("Naqsha", "naqsha") };
+    if cfg!(target_os = "macos") {
+        env("HOME").map(|h| h.join("Library/Application Support").join(mac))
+    } else if cfg!(windows) {
+        env("APPDATA").or_else(|| env("USERPROFILE").map(|h| h.join("AppData\\Roaming"))).map(|d| d.join(mac))
+    } else {
+        env("XDG_DATA_HOME").or_else(|| env("HOME").map(|h| h.join(".local/share"))).map(|d| d.join(other))
+    }
+}
+
+/// Where crash logs go: ~/Library/Logs/Naqsha, %LOCALAPPDATA%\Naqsha\Logs, or ~/.local/state/naqsha.
+pub fn log_dir() -> Option<PathBuf> {
+    let env = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
+    if cfg!(target_os = "macos") {
+        env("HOME").map(|h| h.join("Library/Logs/Naqsha"))
+    } else if cfg!(windows) {
+        env("LOCALAPPDATA").map(|d| d.join("Naqsha").join("Logs"))
+    } else {
+        env("XDG_STATE_HOME").or_else(|| env("HOME").map(|h| h.join(".local/state"))).map(|d| d.join("naqsha"))
+    }
+}
+
+/// A release build on Windows is a GUI program with no console; when it is run from a terminal
+/// for a command-line job (--export…), print to that terminal.
+pub fn attach_console() {
+    #[cfg(windows)]
+    unsafe {
+        #[link(name = "kernel32")]
+        extern "system" { fn AttachConsole(pid: u32) -> i32; }
+        AttachConsole(u32::MAX); // ATTACH_PARENT_PROCESS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keys_pc;
+    #[test]
+    fn shortcuts_read_as_ctrl_on_windows_and_linux() {
+        assert_eq!(keys_pc("Save (⌘S)"), "Save (Ctrl+S)");
+        assert_eq!(keys_pc("Redo (⇧⌘Z)"), "Redo (Ctrl+Shift+Z)");
+        assert_eq!(keys_pc("⌘ scroll, pinch, ⌘= ⌘-"), "Ctrl scroll, pinch, Ctrl+= Ctrl+-");
+        assert_eq!(keys_pc("⌘D or ⌥-drag"), "Ctrl+D or Alt-drag");
+        assert_eq!(keys_pc("Open  ⌘↓"), "Open  Ctrl+Down");
+        assert_eq!(keys_pc("Arrows (⇧ ×10)"), "Arrows (Shift ×10)");
+        assert_eq!(keys_pc("Esc or ⌘↩"), "Esc or Ctrl+Enter");
+        assert_eq!(keys_pc("⌫"), "Backspace");
+        assert_eq!(keys_pc("Bring to front (⇧⌘])"), "Bring to front (Ctrl+Shift+])");
+    }
+}

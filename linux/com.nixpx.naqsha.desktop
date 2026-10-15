@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Naqsha
+GenericName=Diagram Editor
+Comment=Diagrams and architecture: flowcharts, cloud, CI/CD; opens Visio and draw.io files
+Exec=naqsha %F
+Icon=naqsha
+Terminal=false
+Categories=Graphics;VectorGraphics;Office;Development;
+MimeType=application/x-naqsha;application/vnd.ms-visio.drawing.main+xml;application/vnd.jgraph.mxfile;
+Keywords=diagram;flowchart;visio;drawio;architecture;uml;c4;pipeline;
+StartupWMClass=com.nixpx.naqsha

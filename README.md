@@ -4,14 +4,16 @@
 
 # Naqsha
 
-**Native diagramming and architecture for macOS: flowcharts, cloud and solution architecture, CI/CD pipelines, Visio and draw.io files.**
+**Native diagramming and architecture for macOS, Windows and Linux: flowcharts, cloud and solution architecture, CI/CD pipelines, Visio and draw.io files.**
 
 *naqsha* (نقشه): a plan, a map, a blueprint.
 
-[Download for macOS](../../releases/latest) · [Build from source](#build-from-source) · [Features](#features) · [File formats](#open-and-save-any-format) · [Roadmap](#roadmap)
+[Download](../../releases/latest) · [Build from source](#build-from-source) · [Features](#features) · [File formats](#open-and-save-any-format) · [Roadmap](#roadmap)
 
 ![macOS 11+](https://img.shields.io/badge/macOS-11%2B-0F0F1A?logo=apple&logoColor=white)
-![Apple Silicon + Intel](https://img.shields.io/badge/universal-Apple%20Silicon%20%2B%20Intel-6C4DFF)
+![Windows 10+](https://img.shields.io/badge/Windows-10%2B-0F0F1A?logo=windows&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-.deb%20·%20.rpm-0F0F1A?logo=linux&logoColor=white)
+![MIT License](https://img.shields.io/badge/license-MIT-6C4DFF)
 ![Written in Rust](https://img.shields.io/badge/written%20in-Rust-19C3DD?logo=rust&logoColor=white)
 ![Opens .vsdx and .drawio](https://img.shields.io/badge/opens-.vsdx%20·%20.drawio%20·%20.svg-6C4DFF)
 
@@ -26,7 +28,7 @@
 
 ## Why Naqsha
 
-- **A real Mac app.** It's GPU-rendered and starts instantly. It has a native menu bar and opens files from Finder, and it works offline. Your diagrams are plain files on your disk, not rows in someone else's cloud.
+- **A real desktop app.** It's GPU-rendered and starts instantly, on macOS, Windows and Linux. On the Mac it has a native menu bar and opens files from Finder. It works offline. Your diagrams are plain files on your disk, not rows in someone else's cloud.
 - **It speaks Visio and draw.io.** Open a `.vsdx` from a colleague, edit it, and send back a `.vsdx`. The same goes for `.drawio`, with pages, layers, containers, shape data and connector routes kept.
 - **Built for architects and DevOps engineers.** It comes with C4, cloud and enterprise-integration stencils, and with templates for solution architecture packs, GitOps and environment promotion. It also imports GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines and Jenkins definitions straight into diagrams.
 - **Large systems stay readable.** Any shape can open its own page (a sub-diagram) and shows a live preview of it, so an overview stays clean while the detail is one click away.
@@ -100,20 +102,34 @@ Legacy binary Visio files (`.vsd`) aren't supported; re-save them as `.vsdx` in 
 
 ## Install
 
-### Download
-Get the latest `.dmg` from **[Releases](../../releases/latest)**, open it and drag **Naqsha** to Applications. It's one universal app for Apple Silicon and Intel Macs, running macOS 11 or later.
+Get the latest version from **[Releases](../../releases/latest)**:
+
+| System | Download | Notes |
+|---|---|---|
+| macOS 11+ (Apple Silicon and Intel) | `Naqsha-…-macos-universal.dmg` | Open it and drag **Naqsha** to Applications |
+| Windows 10 / 11 (x64) | `Naqsha-…-windows-x64-setup.exe` | Installs for your user, no admin needed. Also a portable `.zip`. |
+| Ubuntu / Debian | `naqsha_…_amd64.deb` | `sudo apt install ./naqsha_*_amd64.deb` |
+| Red Hat / Fedora / Rocky / Alma | `naqsha-…x86_64.rpm` | `sudo dnf install ./naqsha-*.x86_64.rpm` |
+| Other Linux (x86_64) | `naqsha-…-linux-x86_64.tar.gz` | Unpack and run `./naqsha` |
+
+The Linux build runs on Ubuntu 20.04+, Debian 11+, RHEL 8+ and recent Fedora, on X11 or Wayland. File dialogs use the desktop portal (`xdg-desktop-portal`), which GNOME and KDE already have.
+
+The macOS and Windows builds aren't code-signed yet. On a Mac, right-click Naqsha › Open the first time. On Windows, choose More info › Run anyway if SmartScreen warns you.
 
 ### Build from source
-```bash
-# one-time: install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+Install Rust from [rustup.rs](https://rustup.rs), then:
 
-# build Naqsha.app and a .dmg (universal), and install it into /Applications
-./build-mac.sh --install          # add --native for a faster build for your Mac only
+```bash
+cargo build --release                     # any OS: target/release/naqsha(.exe)
+./build-mac.sh --install                  # macOS: Naqsha.app + .dmg (universal), installed into /Applications
 ```
-The build is ad-hoc signed, so it runs on the machine that built it. To distribute it, set `SIGN_IDENTITY="Developer ID Application: …"` and notarize. Pushing a `v*` tag runs the GitHub Actions workflow in `.github/workflows/macos.yml`, which builds the DMG on a macOS runner.
+On macOS, add `--native` for a faster build for your Mac only. To distribute the Mac app, set `SIGN_IDENTITY="Developer ID Application: …"` and notarize.
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds every package above and publishes them as a GitHub Release.
 
 ## Keyboard shortcuts
+
+Shown with Mac keys. On Windows and Linux, ⌘ is Ctrl, ⌥ is Alt and ⇧ is Shift; the app shows the right names for your system.
 
 | Action | Keys | Action | Keys |
 |---|---|---|---|
@@ -147,7 +163,7 @@ Ideas and bug reports are welcome in [Issues](../../issues).
 ## Contributing
 
 ```bash
-cargo test --release      # 29 tests: formats, routing, layout, sub-diagrams, pipelines, templates
+cargo test --release      # 30 tests: formats, routing, layout, sub-diagrams, pipelines, templates
 cargo run --release       # run the app
 ```
 
@@ -172,7 +188,9 @@ src/ui.rs          ribbon, panels, format pane, dialogs, shortcuts
 src/export.rs      SVG / PNG / PDF export
 src/formats/       vsdx.rs · drawio.rs · svgin.rs · pipeline.rs
 src/macos.rs       native menu bar, Finder integration
+src/platform.rs    per-OS glue: shortcut names, data folders
 assets/            icon.svg (source), Naqsha.icns
+linux/  windows/   desktop entry, file types, installer
 examples/          sample.nqs, make_icon.rs, render_svg.rs
 ```
 </details>
@@ -183,6 +201,6 @@ Naqsha was called Schemix during early development. Older `.schx` files open as 
 
 ## License
 
-© 2026 Nixpx LLC. License to be announced.
+[MIT](LICENSE) © 2026 Nixpx LLC
 
 <div align="center"><sub>Made by <a href="https://nixpx.com">Nixpx</a></sub></div>

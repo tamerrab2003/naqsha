@@ -172,7 +172,7 @@ impl App {
     pub fn page(&self) -> &Page { &self.doc.pages[self.pi] }
     pub fn page_mut(&mut self) -> &mut Page { &mut self.doc.pages[self.pi] }
 
-    pub fn notify(&mut self, msg: impl Into<String>) { self.toast = Some((msg.into(), self.now)); }
+    pub fn notify(&mut self, msg: impl Into<String>) { self.toast = Some((crate::platform::keys(&msg.into()), self.now)); }
 
     // ------------------------------------------------------------- undo
     pub fn checkpoint(&mut self) {

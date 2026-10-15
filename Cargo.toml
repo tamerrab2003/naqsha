@@ -1,7 +1,13 @@
 [package]
 name = "naqsha"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
+description = "Native diagramming and architecture: flowcharts, cloud and solution architecture, CI/CD pipelines, Visio and draw.io files"
+license = "MIT"
+authors = ["Nixpx LLC"]
+homepage = "https://nixpx.com/naqsha"
+repository = "https://github.com/tamerrab2003/naqsha"
+readme = "README.md"
 
 [dependencies]
 eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "persistence", "x11", "wayland"] }
@@ -26,5 +32,51 @@ objc2 = "0.6"
 objc2-app-kit = "0.3"
 objc2-foundation = "0.3"
 
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
 [profile.release]
 debug = "line-tables-only"
+
+# ---- Linux packages (cargo deb --no-build / cargo generate-rpm) ----
+# The binary loads X11, Wayland and OpenGL at run time, so these are runtime dependencies only.
+[package.metadata.deb]
+maintainer = "Nixpx LLC <hello@nixpx.com>"
+section = "graphics"
+priority = "optional"
+depends = "libc6 (>= 2.28), libgl1, libegl1, libxkbcommon0, libxkbcommon-x11-0, libx11-6, libxcursor1, libxrandr2, libxi6, libwayland-client0"
+recommends = "xdg-desktop-portal"
+extended-description = "Naqsha draws flowcharts, cloud and solution architecture, C4 models and CI/CD pipelines. It opens and saves Visio .vsdx, draw.io and SVG files and exports PNG, SVG and PDF."
+assets = [
+    ["target/release/naqsha", "usr/bin/", "755"],
+    ["linux/com.nixpx.naqsha.desktop", "usr/share/applications/", "644"],
+    ["linux/naqsha-mime.xml", "usr/share/mime/packages/naqsha.xml", "644"],
+    ["assets/icon.svg", "usr/share/icons/hicolor/scalable/apps/naqsha.svg", "644"],
+    ["linux/naqsha-128.png", "usr/share/icons/hicolor/128x128/apps/naqsha.png", "644"],
+    ["linux/naqsha-256.png", "usr/share/icons/hicolor/256x256/apps/naqsha.png", "644"],
+    ["assets/icon-512.png", "usr/share/icons/hicolor/512x512/apps/naqsha.png", "644"],
+    ["LICENSE", "usr/share/doc/naqsha/", "644"],
+]
+
+[package.metadata.generate-rpm]
+summary = "Native diagramming and architecture app; opens Visio and draw.io files"
+assets = [
+    { source = "target/release/naqsha", dest = "/usr/bin/naqsha", mode = "755" },
+    { source = "linux/com.nixpx.naqsha.desktop", dest = "/usr/share/applications/com.nixpx.naqsha.desktop", mode = "644" },
+    { source = "linux/naqsha-mime.xml", dest = "/usr/share/mime/packages/naqsha.xml", mode = "644" },
+    { source = "assets/icon.svg", dest = "/usr/share/icons/hicolor/scalable/apps/naqsha.svg", mode = "644" },
+    { source = "linux/naqsha-128.png", dest = "/usr/share/icons/hicolor/128x128/apps/naqsha.png", mode = "644" },
+    { source = "linux/naqsha-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/naqsha.png", mode = "644" },
+    { source = "assets/icon-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/naqsha.png", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/licenses/naqsha/LICENSE", doc = true, mode = "644" },
+]
+[package.metadata.generate-rpm.requires]
+mesa-libGL = "*"
+mesa-libEGL = "*"
+libxkbcommon = "*"
+libxkbcommon-x11 = "*"
+libX11 = "*"
+libXcursor = "*"
+libXrandr = "*"
+libXi = "*"
+libwayland-client = "*"

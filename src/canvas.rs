@@ -325,7 +325,7 @@ fn breadcrumb_bar(app: &mut App, ui: &mut Ui, crect: Rect) {
         egui::Frame::new().fill(pal.panel).stroke(Stroke::new(1.0, pal.border)).corner_radius(8.0).inner_margin(egui::Margin::symmetric(6, 4)).shadow(egui::epaint::Shadow { offset: [0, 2], blur: 8, spread: 0, color: Color32::from_black_alpha(if pal.dark { 70 } else { 22 }) }).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                let b = ui.add(egui::Button::new(egui::RichText::new("‹  Back").color(Color32::WHITE).strong()).fill(pal.accent).corner_radius(6.0)).on_hover_text("Back to the parent page (⌘↑)");
+                let b = ui.add(egui::Button::new(egui::RichText::new("‹  Back").color(Color32::WHITE).strong()).fill(pal.accent).corner_radius(6.0)).on_hover_text(crate::platform::keys("Back to the parent page (⌘↑)"));
                 if b.clicked() { back = true; }
                 ui.add_space(4.0);
                 for (i, sid) in &crumbs {
@@ -826,7 +826,7 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
         painter.line_segment([c + vec2(k, -k), c + vec2(-0.5, -k)], st);
         painter.line_segment([c + vec2(k, -k), c + vec2(k, 0.5)], st);
         if hot {
-            let g = painter.layout_no_wrap(format!("Open “{}”  ⌘↓", target.name), FontId::proportional(11.5), pal.text);
+            let g = painter.layout_no_wrap(crate::platform::keys(&format!("Open “{}”  ⌘↓", target.name)), FontId::proportional(11.5), pal.text);
             let r = Rect::from_min_size(c + vec2(13.0, -g.size().y / 2.0 - 4.0), g.size() + vec2(14.0, 8.0));
             painter.rect_filled(r.translate(vec2(0.0, 1.5)), 6.0, Color32::from_black_alpha(30));
             painter.rect_filled(r, 6.0, pal.panel);

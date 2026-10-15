@@ -1,0 +1,108 @@
+name: Release
+# Push a tag like v0.2.0 to build Naqsha for macOS, Linux and Windows and publish a GitHub Release.
+# Run it by hand (Actions › Release › Run workflow) to just build, without publishing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: sed -i '' "s/^version = \".*\"/version = \"${GITHUB_REF_NAME#v}\"/" Cargo.toml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - run: ./build-mac.sh
+      - name: Name the download
+        run: |
+          V=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          mkdir -p out && mv dist/Naqsha-$V.dmg out/Naqsha-$V-macos-universal.dmg
+      - uses: actions/upload-artifact@v4
+        with: { name: macos, path: out/* }
+
+  linux:
+    # Built on AlmaLinux 8 (glibc 2.28) so one binary runs on Ubuntu 20.04+, Debian 11+,
+    # RHEL / Rocky / Alma 8+ and Fedora. X11, Wayland and OpenGL are loaded at run time.
+    runs-on: ubuntu-latest
+    container: almalinux:8
+    steps:
+      - run: dnf -y install gcc binutils git tar gzip findutils
+      - uses: actions/checkout@v4
+      - name: Version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: sed -i "s/^version = \".*\"/version = \"${GITHUB_REF_NAME#v}\"/" Cargo.toml
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - run: cargo build --release
+      - run: cargo test --release
+      - run: cargo install --locked cargo-deb cargo-generate-rpm
+      - name: Package .deb, .rpm and .tar.gz
+        run: |
+          V=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          strip target/release/naqsha
+          mkdir -p out
+          cargo deb --no-build --no-strip -o out/naqsha_${V}_amd64.deb
+          cargo generate-rpm -o out/naqsha-${V}-1.x86_64.rpm
+          D=naqsha-$V-linux-x86_64
+          mkdir -p $D && cp target/release/naqsha LICENSE README.md linux/com.nixpx.naqsha.desktop linux/naqsha-mime.xml $D/ && cp assets/icon-512.png $D/naqsha.png
+          tar czf out/$D.tar.gz $D
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with: { name: linux, path: out/* }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: sed -i "s/^version = \".*\"/version = \"${GITHUB_REF_NAME#v}\"/" Cargo.toml
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: cargo test --release
+      - name: Installer and portable zip
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"').Matches[0].Groups[1].Value
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) { choco install innosetup -y --no-progress }
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" }
+          & $iscc /DAppVersion=$v windows\naqsha.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force out | Out-Null
+          Move-Item dist\Naqsha-$v-windows-x64-setup.exe out\
+          New-Item -ItemType Directory -Force portable | Out-Null
+          Copy-Item target\release\naqsha.exe portable\Naqsha.exe
+          Copy-Item LICENSE portable\LICENSE.txt
+          Compress-Archive -Path portable\* -DestinationPath out\Naqsha-$v-windows-x64-portable.zip
+          Get-ChildItem out
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: out/* }
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - run: cd out && sha256sum * > SHA256SUMS.txt && ls -l
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

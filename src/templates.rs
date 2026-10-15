@@ -121,12 +121,8 @@ pub fn user(dir: &std::path::Path) -> Vec<Entry> {
 }
 
 pub fn user_dir() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME").map(PathBuf::from)?;
-    let (new, old) = if cfg!(target_os = "macos") {
-        (home.join("Library/Application Support/Naqsha/Templates"), home.join("Library/Application Support/Schemix/Templates"))
-    } else {
-        (home.join(".local/share/naqsha/templates"), home.join(".local/share/schemix/templates"))
-    };
+    let new = crate::platform::data_dir(false)?.join(if cfg!(target_os = "linux") { "templates" } else { "Templates" });
+    let old = crate::platform::data_dir(true)?.join(if cfg!(target_os = "linux") { "templates" } else { "Templates" });
     // templates saved before the app was renamed move to the new folder once
     if !new.exists() && old.exists() {
         if let Some(parent) = new.parent() { let _ = std::fs::create_dir_all(parent); }

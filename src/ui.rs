@@ -7,6 +7,7 @@ use crate::library::{self, CATEGORIES, DEFS};
 use crate::model::*;
 use crate::render::{self, with_alpha, Ctx, View};
 use crate::theme::{self, from_c32, to_c32, Pal};
+use crate::platform;
 use egui::{pos2, vec2, Align, Align2, Color32, CornerRadius, FontId, Id as EId, Key, Layout, Margin, Rect, Response, RichText, Sense, Stroke, StrokeKind, Ui};
 use std::collections::HashMap;
 
@@ -32,7 +33,7 @@ fn tb(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str, on: bool) -> R
         x += 24.0;
     }
     if let Some(g) = g { let h = g.size().y; ui.painter().galley(pos2(x, rect.center().y - h / 2.0), g, dim(fg)); }
-    if tip.is_empty() { r } else { r.on_hover_text(tip) }
+    if tip.is_empty() { r } else { r.on_hover_text(platform::keys(tip)) }
 }
 
 fn big(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str) -> Response {
@@ -41,7 +42,7 @@ fn big(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str) -> Response {
     if r.hovered() { ui.painter().rect_filled(rect, 7.0, pal.hover); }
     paint_icon(ui, icon, Rect::from_center_size(rect.center_top() + vec2(0.0, 22.0), vec2(24.0, 24.0)), if r.hovered() { pal.accent } else { pal.muted });
     ui.painter().text(rect.center_bottom() - vec2(0.0, 13.0), Align2::CENTER_CENTER, label, FontId::proportional(11.5), pal.text);
-    if tip.is_empty() { r } else { r.on_hover_text(tip) }
+    if tip.is_empty() { r } else { r.on_hover_text(platform::keys(tip)) }
 }
 
 fn group(ui: &mut Ui, pal: &Pal, name: &str, add: impl FnOnce(&mut Ui)) {
@@ -66,7 +67,7 @@ fn swatch(ui: &mut Ui, pal: &Pal, c: Option<Color32>, selected: bool, tip: &str)
     }
     ui.painter().rect_stroke(rr, 4.0, Stroke::new(1.0, if pal.dark { Color32::from_white_alpha(40) } else { Color32::from_black_alpha(30) }), StrokeKind::Inside);
     if selected { ui.painter().rect_stroke(rr.expand(2.0), 5.0, Stroke::new(1.5, pal.accent), StrokeKind::Outside); }
-    if tip.is_empty() { r } else { r.on_hover_text(tip) }
+    if tip.is_empty() { r } else { r.on_hover_text(platform::keys(tip)) }
 }
 
 /// Colour row: Auto (theme), None, swatches, custom picker. Returns Some(new value) when changed.
@@ -767,7 +768,7 @@ fn subdiagram_section(app: &mut App, ui: &mut Ui, pal: &Pal, s: &Shape) {
         if let Some(l) = pick { app.set_link(s.id, l); }
         ui.horizontal(|ui| {
             if target.is_some() {
-                if ui.button("Open  ⌘↓").clicked() { app.open_link(s.id); }
+                if ui.button(platform::keys("Open  ⌘↓")).clicked() { app.open_link(s.id); }
                 let mut show = !s.no_preview;
                 if ui.add_enabled(library::shows_preview(&Shape { no_preview: false, ..s.clone() }), egui::Checkbox::new(&mut show, "Preview inside")).changed() { app.toggle_preview(s.id); }
             } else if ui.add_enabled(!s.locked, egui::Button::new("Create sub-diagram page")).clicked() { app.create_subpage(s.id); }
@@ -989,7 +990,7 @@ pub fn context_menu(app: &mut App, ctx: &egui::Context) {
         egui::Frame::popup(ui.style()).fill(pal.panel).show(ui, |ui| {
             ui.set_min_width(200.0);
             let item = |ui: &mut Ui, label: &str, key: &str, enabled: bool| -> bool {
-                ui.add_enabled(enabled, egui::Button::new(label).shortcut_text(key).frame(false).min_size(vec2(190.0, 22.0))).clicked()
+                ui.add_enabled(enabled, egui::Button::new(label).shortcut_text(platform::keys(key)).frame(false).min_size(vec2(190.0, 22.0))).clicked()
             };
             if item(ui, "Cut", "⌘X", has) { if let Some(j) = app.clip_json() { ctx.copy_text(j); app.delete_sel(); } close = true; }
             if item(ui, "Copy", "⌘C", has) { if let Some(j) = app.clip_json() { ctx.copy_text(j); } close = true; }
@@ -1272,7 +1273,7 @@ pub fn modals(app: &mut App, ctx: &egui::Context) {
                     ];
                     for (i, (a, b)) in rows.iter().enumerate() {
                         ui.label(RichText::new(*a).color(pal.muted));
-                        ui.label(RichText::new(*b).strong());
+                        ui.label(RichText::new(platform::keys(b)).strong());
                         if i % 2 == 1 { ui.end_row(); }
                     }
                 });

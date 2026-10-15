@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-naqsha">
+    <comment>Naqsha diagram</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.nqs"/>
+    <glob pattern="*.schx"/>
+    <icon name="naqsha"/>
+  </mime-type>
+  <mime-type type="application/vnd.jgraph.mxfile">
+    <comment>draw.io diagram</comment>
+    <glob pattern="*.drawio"/>
+  </mime-type>
+</mime-info>

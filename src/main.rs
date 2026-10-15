@@ -189,11 +189,7 @@ fn migrate_old_settings() {
 
 /// Write panic messages to a log file: macOS crash reports don't include them.
 fn install_crash_log() {
-    let dir = if cfg!(target_os = "macos") {
-        std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join("Library/Logs/Naqsha"))
-    } else {
-        std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/state/naqsha"))
-    };
+    let dir = platform::log_dir();
     let default = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         if let Some(dir) = &dir {
@@ -211,6 +207,7 @@ fn install_crash_log() {
 fn main() -> eframe::Result<()> {
     install_crash_log();
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map_or(false, |a| a.starts_with("--")) { platform::attach_console(); }
     if args.get(1).map(|a| a == "--arrange").unwrap_or(false) {
         // naqsha --arrange tb|lr|grid in.(nqs|vsdx|drawio) out.(nqs|vsdx|drawio|png|svg|pdf) [page]
         let run = || -> Result<(), String> {
