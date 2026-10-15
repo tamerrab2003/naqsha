@@ -18,12 +18,12 @@ NATIVE=0; INSTALL=0
 for a in "$@"; do [[ $a == --native ]] && NATIVE=1; [[ $a == --install ]] && INSTALL=1; done
 
 if [[ $NATIVE == 1 ]]; then
-  cargo build --release
+  cargo build --release ${FEATURES:+--features $FEATURES}
   BIN=target/release/naqsha
 else
   rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null
-  cargo build --release --target aarch64-apple-darwin
-  cargo build --release --target x86_64-apple-darwin
+  cargo build --release --target aarch64-apple-darwin ${FEATURES:+--features $FEATURES}
+  cargo build --release --target x86_64-apple-darwin ${FEATURES:+--features $FEATURES}
   mkdir -p target/universal
   lipo -create -output target/universal/naqsha \
     target/aarch64-apple-darwin/release/naqsha target/x86_64-apple-darwin/release/naqsha

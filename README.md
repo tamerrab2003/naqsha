@@ -154,6 +154,12 @@ naqsha --arrange lr in.drawio out.nqs        # auto-arrange: tb | lr | grid
 naqsha --templates ./out                     # write every built-in template as .nqs
 ```
 
+## Naqsha Pro
+
+Naqsha is free and open source. **Naqsha Pro** adds what engineers need to deliver drawings: equipment tags and schedules exported for Excel, with sheets and title blocks and P&ID, process and electrical libraries coming next. Pro is part of the official downloads, with a 14-day free trial, a subscription or a one-time licence. See [nixpx.com/naqsha](https://nixpx.com/naqsha#pro).
+
+Pro's code is closed source and isn't in this repository: building from source gives the free edition (`src/pro_stub.rs`). Diagrams made with Pro open and display in every edition.
+
 ## Roadmap
 
 - Open files from a URL in the browser version, and your own templates there
@@ -206,6 +212,6 @@ Naqsha was called Schemix during early development. Older `.schx` files open as 
 
 ## License
 
-[MIT](LICENSE) © 2026 Nixpx LLC
+[MIT](LICENSE) © 2026 Nixpx LLC. Naqsha Pro (the private `pro/` module) is proprietary.
 
 <div align="center"><sub>Made by <a href="https://nixpx.com">Nixpx</a></sub></div>

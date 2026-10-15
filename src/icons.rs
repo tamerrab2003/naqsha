@@ -3,6 +3,9 @@ use egui::{pos2, Color32, ColorImage, Painter, Rect, TextureHandle, TextureOptio
 use std::collections::HashMap;
 
 const ICONS: &[(&str, &str)] = &[
+    ("star", r##"<path d="M9 1.8l2.1 4.6 5 .5-3.8 3.4 1.1 4.9L9 12.7l-4.4 2.5 1.1-4.9L1.9 6.9l5-.5z"/>"##),
+    ("sheet", r##"<rect x="1.8" y="2.5" width="14.4" height="13" rx="1.2"/><path d="M8.5 11.5h7.7M8.5 11.5v4M12.3 11.5v4"/>"##),
+    ("schedule", r##"<rect x="2" y="2.5" width="14" height="13" rx="1.2"/><path d="M2 6.3h14M2 10h14M6.5 2.5v13"/>"##),
     ("pipeline", r##"<rect x="1.5" y="6.5" width="4" height="5" rx="1"/><rect x="7" y="6.5" width="4" height="5" rx="1"/><rect x="12.5" y="2.5" width="4" height="4" rx="1"/><rect x="12.5" y="11.5" width="4" height="4" rx="1"/><path d="M5.5 9H7M11 9h.8V4.5h.7M11.8 9v4.5h.7"/>"##),
     ("script", r##"<rect x="1.8" y="2.5" width="14.4" height="13" rx="2"/><path d="M1.8 5.8h14.4M5 9l2 1.8L5 12.6M8.6 12.6h4"/>"##),
     ("template", r##"<rect x="2" y="2" width="6" height="6" rx="1"/><rect x="10" y="2" width="6" height="6" rx="1"/><rect x="2" y="10" width="6" height="6" rx="1"/><path d="M13 10.5v5M10.5 13h5"/>"##),

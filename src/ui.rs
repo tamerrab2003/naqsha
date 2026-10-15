@@ -18,7 +18,7 @@ pub fn paint_icon(ui: &Ui, name: &str, rect: Rect, tint: Color32) {
 }
 
 /// Toolbar button: optional icon + optional label, painted to match the Nixpx look.
-fn tb(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str, on: bool) -> Response {
+pub(crate) fn tb(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str, on: bool) -> Response {
     let fg = if on { pal.accent } else { pal.text };
     let g = if label.is_empty() { None } else { Some(ui.painter().layout_no_wrap(label.to_string(), FontId::proportional(12.5), fg)) };
     let has_icon = !icon.is_empty();
@@ -36,7 +36,7 @@ fn tb(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str, on: bool) -> R
     if tip.is_empty() { r } else { r.on_hover_text(platform::keys(tip)) }
 }
 
-fn big(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str) -> Response {
+pub(crate) fn big(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str) -> Response {
     let tw = ui.painter().layout_no_wrap(label.to_string(), FontId::proportional(11.5), pal.text).size().x;
     let (rect, r) = ui.allocate_exact_size(vec2((tw + 14.0).max(56.0), 62.0), Sense::click());
     if r.hovered() { ui.painter().rect_filled(rect, 7.0, pal.hover); }
@@ -45,7 +45,7 @@ fn big(ui: &mut Ui, pal: &Pal, icon: &str, label: &str, tip: &str) -> Response {
     if tip.is_empty() { r } else { r.on_hover_text(platform::keys(tip)) }
 }
 
-fn group(ui: &mut Ui, pal: &Pal, name: &str, add: impl FnOnce(&mut Ui)) {
+pub(crate) fn group(ui: &mut Ui, pal: &Pal, name: &str, add: impl FnOnce(&mut Ui)) {
     ui.vertical(|ui| {
         let r = ui.horizontal(|ui| { ui.set_min_height(62.0); ui.spacing_mut().item_spacing = vec2(2.0, 2.0); add(ui); }).response;
         let lw = ui.painter().layout_no_wrap(name.to_string(), FontId::proportional(10.5), pal.faint).size().x;
@@ -170,14 +170,14 @@ pub fn top(app: &mut App, ui: &mut Ui) {
     egui::Panel::top("tabs").exact_size(30.0).frame(egui::Frame::new().fill(pal.chrome).inner_margin(Margin { left: 10, right: 10, top: 2, bottom: 0 })).show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
-            for (t, n) in [(Tab::File, "File"), (Tab::Home, "Home"), (Tab::Insert, "Insert"), (Tab::Design, "Design"), (Tab::Arrange, "Arrange"), (Tab::View, "View")] {
+            for (t, n) in [(Tab::File, "File"), (Tab::Home, "Home"), (Tab::Insert, "Insert"), (Tab::Design, "Design"), (Tab::Arrange, "Arrange"), (Tab::View, "View"), (Tab::Pro, "Pro")] {
                 let on = app.tab == t;
                 let (rect, r) = ui.allocate_exact_size(vec2(70.0, 28.0), Sense::click());
                 if on {
                     ui.painter().rect_filled(rect, CornerRadius { nw: 8, ne: 8, sw: 0, se: 0 }, pal.panel);
                     ui.painter().line_segment([rect.left_top() + vec2(6.0, 0.5), rect.right_top() + vec2(-6.0, 0.5)], Stroke::new(2.0, pal.accent));
                 }
-                let c = if on || t == Tab::File { pal.accent } else if r.hovered() { pal.text } else { pal.muted };
+                let c = if on || t == Tab::File || (t == Tab::Pro && crate::pro::active(app)) { pal.accent } else if r.hovered() { pal.text } else { pal.muted };
                 ui.painter().text(rect.center(), Align2::CENTER_CENTER, n, FontId::proportional(12.5), c);
                 if r.clicked() { app.tab = t; }
             }
@@ -195,6 +195,7 @@ pub fn top(app: &mut App, ui: &mut Ui) {
                     Tab::Design => ribbon_design(app, ui, &pal),
                     Tab::Arrange => ribbon_arrange(app, ui, &pal),
                     Tab::View => ribbon_view(app, ui, &pal),
+                    Tab::Pro => crate::pro::ribbon(app, ui, &pal),
                 }
             });
         });
@@ -229,6 +230,7 @@ fn ribbon_file(app: &mut App, ui: &mut Ui, pal: &Pal) {
     }); }
     group(ui, pal, "About", |ui| {
         if big(ui, pal, "info", "About", "About Naqsha").clicked() { app.modal = Some(Modal::About); }
+        if !crate::files::WEB && big(ui, pal, "star", "Pro", "Naqsha Pro: licence, trial and plans").clicked() { app.modal = Some(Modal::Pro); }
         if big(ui, pal, "keyboard", "Shortcuts", "Keyboard shortcuts").clicked() { app.modal = Some(Modal::Shortcuts); }
     });
 }
@@ -1251,14 +1253,19 @@ pub fn modals(app: &mut App, ctx: &egui::Context) {
                     ui.add(egui::Image::new((tex.id(), vec2(88.0, 88.0))));
                     ui.label(RichText::new("Naqsha").size(22.0).strong().color(pal.accent));
                     ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+                    if !crate::files::WEB { ui.label(RichText::new(crate::pro::status_line(app)).color(pal.muted)); }
                     ui.add_space(6.0);
                     ui.label(RichText::new("naqsha (نقشه): a plan, a map, a blueprint.").italics().color(pal.muted));
                     ui.add_space(4.0);
-                    ui.label(RichText::new("Diagrams and architecture, native on your Mac.\nA Nixpx product.").color(pal.muted));
+                    ui.label(RichText::new("Diagrams and architecture for Mac, Windows, Linux and the web.\nA Nixpx product.").color(pal.muted));
                     ui.add_space(10.0);
                     if ui.button("Close").clicked() { keep = false; }
                 });
             });
+            if r.should_close() { keep = false; }
+        }
+        Modal::Pro => {
+            let r = egui::Modal::new(EId::new("pro")).show(ctx, |ui| { if !crate::pro::dialog(app, ui, &pal) { keep = false; } });
             if r.should_close() { keep = false; }
         }
         Modal::Shortcuts => {

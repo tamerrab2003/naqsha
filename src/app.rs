@@ -15,7 +15,7 @@ pub enum Tool { Pointer, Connector, Text, Pan }
 pub enum Mode { System, Light, Dark }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Tab { File, Home, Insert, Design, Arrange, View }
+pub enum Tab { File, Home, Insert, Design, Arrange, View, Pro }
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -34,11 +34,36 @@ pub struct Settings {
     pub stencil_dirs: Vec<String>,
     /// Last auto-arrange style: "tb", "lr" or "grid".
     pub layout: String,
+    /// Naqsha Pro licence and trial (used by official builds; see src/pro_stub.rs).
+    pub pro: ProLicense,
+}
+
+/// A Naqsha Pro licence as last confirmed by the store, and the trial. Plain data: the logic that
+/// reads it lives in the Pro module, which only official builds include.
+#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProLicense {
+    /// The licence key the customer was emailed.
+    pub key: String,
+    /// This device's activation (one seat).
+    pub instance: String,
+    pub customer: String,
+    pub email: String,
+    /// "Subscription" or "Lifetime" and the plan's name in the store.
+    pub plan: String,
+    pub lifetime: bool,
+    /// The store's word for the key: active, expired, disabled…
+    pub status: String,
+    /// Unix seconds: when the licence was bought, and the last time the store confirmed it.
+    pub created: u64,
+    pub checked: u64,
+    /// Unix seconds when the free trial started (0: not started).
+    pub trial_start: u64,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { mode: Mode::System, grid: true, rulers: true, snap: true, guides: true, show_left: true, show_right: true, grid_size: 20.0, recent: vec![], routing: Routing::Orthogonal, stencil_dirs: vec![], layout: "tb".into() }
+        Settings { mode: Mode::System, grid: true, rulers: true, snap: true, guides: true, show_left: true, show_right: true, grid_size: 20.0, recent: vec![], routing: Routing::Orthogonal, stencil_dirs: vec![], layout: "tb".into(), pro: ProLicense::default() }
     }
 }
 
@@ -68,7 +93,7 @@ pub struct Edit {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Pending { Close, OpenPath }
 
-pub enum Modal { Unsaved(Pending), About, Shortcuts, NewDiagram }
+pub enum Modal { Unsaved(Pending), About, Shortcuts, NewDiagram, Pro }
 
 /// A request for the window manager to open another window.
 pub enum Spawn {

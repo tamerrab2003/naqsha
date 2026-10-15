@@ -15,6 +15,13 @@ mod library;
 #[cfg(target_os = "macos")]
 mod macos;
 mod platform;
+// Naqsha Pro: the closed-source module in pro/ (official builds), or a stand-in that switches it off
+#[cfg(feature = "pro")]
+#[path = "../pro/src/mod.rs"]
+mod pro;
+#[cfg(not(feature = "pro"))]
+#[path = "pro_stub.rs"]
+mod pro;
 mod model;
 mod render;
 mod route;
@@ -104,6 +111,7 @@ impl App {
             else if matches!(ext.as_str(), "png" | "jpg" | "jpeg") { self.notify("Use Insert › Picture to add images"); }
         }
         self.handle_picked();
+        pro::frame(self, &ctx);
         for id in std::mem::take(&mut self.menu_queue) { ui::menu_command(self, ui, &id); }
 
         ui::shortcuts(self, &ctx);
