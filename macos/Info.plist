@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Naqsha</string>
+  <key>CFBundleDisplayName</key><string>Naqsha</string>
+  <key>CFBundleIdentifier</key><string>com.nixpx.naqsha</string>
+  <key>CFBundleExecutable</key><string>naqsha</string>
+  <key>CFBundleIconFile</key><string>Naqsha</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+  <key>CFBundleVersion</key><string>__VERSION__</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.graphics-design</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>NSRequiresAquaSystemAppearance</key><false/>
+  <key>NSHumanReadableCopyright</key><string>© 2026 Nixpx LLC</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>Naqsha Diagram</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+      <key>CFBundleTypeIconFile</key><string>Naqsha</string>
+      <key>LSItemContentTypes</key><array><string>com.nixpx.naqsha.diagram</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Naqsha Diagram (older .schx)</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+      <key>CFBundleTypeIconFile</key><string>Naqsha</string>
+      <key>LSItemContentTypes</key><array><string>com.nixpx.schemix.diagram</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Microsoft Visio Drawing</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>com.microsoft.visio.vsdx</string></array>
+      <key>CFBundleTypeExtensions</key><array><string>vsdx</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>draw.io Diagram</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>com.jgraph.drawio</string></array>
+      <key>CFBundleTypeExtensions</key><array><string>drawio</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>SVG Image</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>public.svg-image</string></array>
+    </dict>
+  </array>
+  <key>UTImportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.microsoft.visio.vsdx</string>
+      <key>UTTypeDescription</key><string>Microsoft Visio Drawing</string>
+      <key>UTTypeConformsTo</key><array><string>public.data</string><string>public.zip-archive</string></array>
+      <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>vsdx</string></array></dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.jgraph.drawio</string>
+      <key>UTTypeDescription</key><string>draw.io Diagram</string>
+      <key>UTTypeConformsTo</key><array><string>public.xml</string></array>
+      <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>drawio</string></array></dict>
+    </dict>
+  </array>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.nixpx.naqsha.diagram</string>
+      <key>UTTypeDescription</key><string>Naqsha Diagram</string>
+      <key>UTTypeIconFile</key><string>Naqsha</string>
+      <key>UTTypeConformsTo</key><array><string>public.json</string></array>
+      <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>nqs</string></array></dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.nixpx.schemix.diagram</string>
+      <key>UTTypeDescription</key><string>Naqsha Diagram (older .schx)</string>
+      <key>UTTypeIconFile</key><string>Naqsha</string>
+      <key>UTTypeConformsTo</key><array><string>public.json</string></array>
+      <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>schx</string></array></dict>
+    </dict>
+  </array>
+</dict>
+</plist>

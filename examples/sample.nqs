@@ -1,0 +1,710 @@
+{
+ "app": "Schemix",
+ "version": 1,
+ "next_id": 55,
+ "pages": [
+  {
+   "id": 9001,
+   "name": "Order flow",
+   "width": 1400,
+   "height": 680,
+   "shapes": [
+    {
+     "id": 2,
+     "kind": "lane_h",
+     "x": 40,
+     "y": 40,
+     "w": 1080,
+     "h": 190,
+     "text": "Customer",
+     "style": {}
+    },
+    {
+     "id": 3,
+     "kind": "lane_h",
+     "x": 40,
+     "y": 230,
+     "w": 1080,
+     "h": 190,
+     "text": "Platform",
+     "style": {}
+    },
+    {
+     "id": 4,
+     "kind": "lane_h",
+     "x": 40,
+     "y": 420,
+     "w": 1080,
+     "h": 190,
+     "text": "Warehouse",
+     "style": {}
+    },
+    {
+     "id": 5,
+     "kind": "fc_terminator",
+     "x": 120,
+     "y": 100,
+     "w": 130,
+     "h": 56,
+     "text": "Start",
+     "style": {}
+    },
+    {
+     "id": 6,
+     "kind": "fc_process",
+     "x": 310,
+     "y": 92,
+     "w": 130,
+     "h": 72,
+     "text": "Browse catalogue",
+     "style": {}
+    },
+    {
+     "id": 7,
+     "kind": "fc_process",
+     "x": 500,
+     "y": 92,
+     "w": 130,
+     "h": 72,
+     "text": "Place order",
+     "style": {}
+    },
+    {
+     "id": 8,
+     "kind": "fc_decision",
+     "x": 490,
+     "y": 275,
+     "w": 150,
+     "h": 100,
+     "text": "Payment OK?",
+     "style": {}
+    },
+    {
+     "id": 9,
+     "kind": "fc_document",
+     "x": 720,
+     "y": 285,
+     "w": 140,
+     "h": 80,
+     "text": "Send invoice",
+     "style": {}
+    },
+    {
+     "id": 10,
+     "kind": "fc_database",
+     "x": 930,
+     "y": 270,
+     "w": 90,
+     "h": 110,
+     "text": "Orders DB",
+     "style": {}
+    },
+    {
+     "id": 11,
+     "kind": "fc_process",
+     "x": 720,
+     "y": 480,
+     "w": 140,
+     "h": 72,
+     "text": "Pick & pack",
+     "style": {}
+    },
+    {
+     "id": 12,
+     "kind": "fc_terminator",
+     "x": 930,
+     "y": 488,
+     "w": 130,
+     "h": 56,
+     "text": "Shipped",
+     "style": {}
+    },
+    {
+     "id": 13,
+     "kind": "fc_manual_input",
+     "x": 290,
+     "y": 290,
+     "w": 140,
+     "h": 72,
+     "text": "Retry payment",
+     "style": {}
+    },
+    {
+     "id": 14,
+     "kind": "note",
+     "x": 1150,
+     "y": 60,
+     "w": 180,
+     "h": 110,
+     "text": "Visio-style swimlanes:\ncontainers carry the\nshapes inside them.",
+     "style": {
+      "shadow": true
+     }
+    }
+   ],
+   "conns": [
+    {
+     "id": 15,
+     "from": {
+      "Glued": {
+       "shape": 5,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 6,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 16,
+     "from": {
+      "Glued": {
+       "shape": 6,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 7,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 17,
+     "from": {
+      "Glued": {
+       "shape": 7,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 8,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 18,
+     "from": {
+      "Glued": {
+       "shape": 8,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 9,
+       "port": -1
+      }
+     },
+     "text": "Yes"
+    },
+    {
+     "id": 19,
+     "from": {
+      "Glued": {
+       "shape": 9,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 10,
+       "port": -1
+      }
+     },
+     "text": "",
+     "arrow_end": "Filled",
+     "style": {
+      "dash": "Dashed"
+     }
+    },
+    {
+     "id": 20,
+     "from": {
+      "Glued": {
+       "shape": 9,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 11,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 21,
+     "from": {
+      "Glued": {
+       "shape": 11,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 12,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 22,
+     "from": {
+      "Glued": {
+       "shape": 8,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 13,
+       "port": -1
+      }
+     },
+     "text": "No"
+    },
+    {
+     "id": 23,
+     "from": {
+      "Glued": {
+       "shape": 13,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 7,
+       "port": -1
+      }
+     },
+     "text": ""
+    }
+   ]
+  },
+  {
+   "id": 9002,
+   "name": "Architecture",
+   "width": 1300,
+   "height": 640,
+   "shapes": [
+    {
+     "id": 27,
+     "kind": "container",
+     "x": 600,
+     "y": 120,
+     "w": 420,
+     "h": 420,
+     "text": "Kubernetes cluster",
+     "style": {}
+    },
+    {
+     "id": 24,
+     "kind": "n_users",
+     "x": 80,
+     "y": 300,
+     "w": 64,
+     "h": 64,
+     "text": "Customers",
+     "style": {}
+    },
+    {
+     "id": 25,
+     "kind": "n_globe",
+     "x": 250,
+     "y": 300,
+     "w": 64,
+     "h": 64,
+     "text": "CDN",
+     "style": {}
+    },
+    {
+     "id": 26,
+     "kind": "n_api",
+     "x": 440,
+     "y": 300,
+     "w": 64,
+     "h": 64,
+     "text": "API Gateway",
+     "style": {}
+    },
+    {
+     "id": 28,
+     "kind": "n_service",
+     "x": 660,
+     "y": 200,
+     "w": 64,
+     "h": 64,
+     "text": "Orders",
+     "style": {}
+    },
+    {
+     "id": 29,
+     "kind": "n_service",
+     "x": 660,
+     "y": 330,
+     "w": 64,
+     "h": 64,
+     "text": "Payments",
+     "style": {}
+    },
+    {
+     "id": 30,
+     "kind": "n_function",
+     "x": 860,
+     "y": 200,
+     "w": 64,
+     "h": 64,
+     "text": "Notifier",
+     "style": {}
+    },
+    {
+     "id": 31,
+     "kind": "n_queue",
+     "x": 860,
+     "y": 330,
+     "w": 64,
+     "h": 64,
+     "text": "Events",
+     "style": {}
+    },
+    {
+     "id": 32,
+     "kind": "n_db",
+     "x": 1100,
+     "y": 200,
+     "w": 64,
+     "h": 64,
+     "text": "PostgreSQL",
+     "style": {}
+    },
+    {
+     "id": 33,
+     "kind": "n_cache",
+     "x": 1100,
+     "y": 330,
+     "w": 64,
+     "h": 64,
+     "text": "Redis",
+     "style": {}
+    },
+    {
+     "id": 34,
+     "kind": "n_firewall",
+     "x": 440,
+     "y": 450,
+     "w": 64,
+     "h": 64,
+     "text": "WAF",
+     "style": {}
+    },
+    {
+     "id": 35,
+     "kind": "n_monitor",
+     "x": 860,
+     "y": 450,
+     "w": 64,
+     "h": 64,
+     "text": "Monitoring",
+     "style": {}
+    }
+   ],
+   "conns": [
+    {
+     "id": 36,
+     "from": {
+      "Glued": {
+       "shape": 24,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 25,
+       "port": -1
+      }
+     },
+     "text": "",
+     "routing": "Straight"
+    },
+    {
+     "id": 37,
+     "from": {
+      "Glued": {
+       "shape": 25,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 26,
+       "port": -1
+      }
+     },
+     "text": "HTTPS"
+    },
+    {
+     "id": 38,
+     "from": {
+      "Glued": {
+       "shape": 26,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 28,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 39,
+     "from": {
+      "Glued": {
+       "shape": 26,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 29,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 40,
+     "from": {
+      "Glued": {
+       "shape": 28,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 32,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 41,
+     "from": {
+      "Glued": {
+       "shape": 29,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 31,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 42,
+     "from": {
+      "Glued": {
+       "shape": 31,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 30,
+       "port": -1
+      }
+     },
+     "text": "",
+     "routing": "Curved"
+    },
+    {
+     "id": 43,
+     "from": {
+      "Glued": {
+       "shape": 29,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 33,
+       "port": -1
+      }
+     },
+     "text": ""
+    },
+    {
+     "id": 44,
+     "from": {
+      "Glued": {
+       "shape": 34,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 26,
+       "port": -1
+      }
+     },
+     "text": "",
+     "arrow_end": "Open"
+    }
+   ]
+  },
+  {
+   "id": 9003,
+   "name": "Domain model",
+   "width": 1100,
+   "height": 520,
+   "shapes": [
+    {
+     "id": 45,
+     "kind": "uml_class",
+     "x": 100,
+     "y": 100,
+     "w": 200,
+     "h": 140,
+     "text": "Order\n--\n+ id: UUID\n+ total: Money\n+ status: Status\n--\n+ place(): void\n+ cancel(): void",
+     "style": {}
+    },
+    {
+     "id": 46,
+     "kind": "uml_class",
+     "x": 420,
+     "y": 100,
+     "w": 200,
+     "h": 120,
+     "text": "LineItem\n--\n+ sku: String\n+ qty: Int\n--\n+ subtotal(): Money",
+     "style": {}
+    },
+    {
+     "id": 47,
+     "kind": "uml_interface",
+     "x": 100,
+     "y": 330,
+     "w": 200,
+     "h": 100,
+     "text": "\u00abinterface\u00bb\nPaymentGateway\n--\n+ charge(o: Order)",
+     "style": {}
+    },
+    {
+     "id": 48,
+     "kind": "er_entity",
+     "x": 420,
+     "y": 320,
+     "w": 200,
+     "h": 130,
+     "text": "customer\n--\nPK id: uuid\n   email: text\n   created_at: ts",
+     "style": {}
+    },
+    {
+     "id": 49,
+     "kind": "uml_actor",
+     "x": 760,
+     "y": 140,
+     "w": 44,
+     "h": 78,
+     "text": "Shopper",
+     "style": {}
+    },
+    {
+     "id": 50,
+     "kind": "uml_usecase",
+     "x": 880,
+     "y": 150,
+     "w": 150,
+     "h": 64,
+     "text": "Checkout",
+     "style": {}
+    },
+    {
+     "id": 51,
+     "kind": "heading",
+     "x": 100,
+     "y": 30,
+     "w": 400,
+     "h": 44,
+     "text": "Domain model",
+     "style": {}
+    }
+   ],
+   "conns": [
+    {
+     "id": 52,
+     "from": {
+      "Glued": {
+       "shape": 45,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 46,
+       "port": -1
+      }
+     },
+     "text": "1..*",
+     "arrow_start": "Diamond",
+     "arrow_end": "None"
+    },
+    {
+     "id": 53,
+     "from": {
+      "Glued": {
+       "shape": 45,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 47,
+       "port": -1
+      }
+     },
+     "text": "",
+     "arrow_end": "Open",
+     "style": {
+      "dash": "Dashed"
+     }
+    },
+    {
+     "id": 54,
+     "from": {
+      "Glued": {
+       "shape": 49,
+       "port": -1
+      }
+     },
+     "to": {
+      "Glued": {
+       "shape": 50,
+       "port": -1
+      }
+     },
+     "text": "",
+     "routing": "Straight",
+     "arrow_end": "None"
+    }
+   ]
+  }
+ ]
+}
