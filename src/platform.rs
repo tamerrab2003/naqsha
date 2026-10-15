@@ -49,8 +49,16 @@ pub fn install_menu(recent: &[String]) -> Option<Box<dyn std::any::Any>> {
 /// Shortcut text as the current OS writes it: "⇧⌘Z" stays as is on macOS and becomes
 /// "Ctrl+Shift+Z" on Windows and Linux. Works on whole sentences ("Save (⌘S)").
 pub fn keys(s: &str) -> String {
-    if cfg!(target_os = "macos") { return s.to_string(); }
+    if is_mac() { return s.to_string(); }
     keys_pc(s)
+}
+
+/// On a Mac — the desktop app, or the browser version running on one.
+pub fn is_mac() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    { static MAC: OnceLock<bool> = OnceLock::new(); *MAC.get_or_init(crate::files::web::is_mac) }
+    #[cfg(not(target_arch = "wasm32"))]
+    { cfg!(target_os = "macos") }
 }
 
 pub fn keys_pc(s: &str) -> String {

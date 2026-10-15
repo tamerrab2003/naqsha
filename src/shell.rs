@@ -67,6 +67,16 @@ impl Shell {
     fn spawn(&mut self, reqs: Vec<Spawn>) {
         for r in reqs {
             match r {
+                // a browser tab holds one diagram: another one opens in a new tab
+                #[cfg(target_arch = "wasm32")]
+                Spawn::Doc(doc, name) => {
+                    if !crate::files::web::open_in_new_tab(&doc, &name) {
+                        let w = self.window(self.focused.min(self.count() - 1));
+                        if w.dirty { w.notify("Your browser blocked the new tab — allow pop-ups for this site, or Save (download) this diagram first"); }
+                        else { w.adopt(doc, &name); }
+                    }
+                }
+                #[cfg(not(target_arch = "wasm32"))]
                 Spawn::Doc(doc, name) => { self.new_window().adopt(doc, &name); }
                 Spawn::Path(p) => {
                     // already open somewhere? bring that window forward instead

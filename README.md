@@ -4,11 +4,11 @@
 
 # Naqsha
 
-**Native diagramming and architecture for macOS, Windows and Linux: flowcharts, cloud and solution architecture, CI/CD pipelines, Visio and draw.io files.**
+**Diagramming and architecture for macOS, Windows, Linux and the browser: flowcharts, cloud and solution architecture, CI/CD pipelines, Visio and draw.io files.**
 
 *naqsha* (نقشه): a plan, a map, a blueprint.
 
-[Download](../../releases/latest) · [Build from source](#build-from-source) · [Features](#features) · [File formats](#open-and-save-any-format) · [Roadmap](#roadmap)
+[Download](../../releases/latest) · [Open in browser](https://nixpx.com/naqsha/app) · [Build from source](#build-from-source) · [Features](#features) · [File formats](#open-and-save-any-format) · [Roadmap](#roadmap)
 
 ![macOS 11+](https://img.shields.io/badge/macOS-11%2B-0F0F1A?logo=apple&logoColor=white)
 ![Windows 10+](https://img.shields.io/badge/Windows-10%2B-0F0F1A?logo=windows&logoColor=white)
@@ -111,6 +111,7 @@ Get the latest version from **[Releases](../../releases/latest)**:
 | Ubuntu / Debian | `naqsha_…_amd64.deb` | `sudo apt install ./naqsha_*_amd64.deb` |
 | Red Hat / Fedora / Rocky / Alma | `naqsha-…x86_64.rpm` | `sudo dnf install ./naqsha-*.x86_64.rpm` |
 | Other Linux (x86_64) | `naqsha-…-linux-x86_64.tar.gz` | Unpack and run `./naqsha` |
+| Any modern browser | **[nixpx.com/naqsha/app](https://nixpx.com/naqsha/app)** | Nothing to install. Save downloads a `.nqs`; unsaved work is kept in the browser. |
 
 The Linux build runs on Ubuntu 20.04+, Debian 11+, RHEL 8+ and recent Fedora, on X11 or Wayland. File dialogs use the desktop portal (`xdg-desktop-portal`), which GNOME and KDE already have.
 
@@ -122,7 +123,9 @@ Install Rust from [rustup.rs](https://rustup.rs), then:
 ```bash
 cargo build --release                     # any OS: target/release/naqsha(.exe)
 ./build-mac.sh --install                  # macOS: Naqsha.app + .dmg (universal), installed into /Applications
+./build-web.sh                            # browser: dist/web (+ dist/naqsha-web.zip), static files for any web server
 ```
+The browser build needs `rustup target add wasm32-unknown-unknown` and `cargo install wasm-bindgen-cli` at the version in `Cargo.lock`; `wasm-opt` (binaryen) makes it smaller. Serve `dist/web` as static files from any path. It needs no backend.
 On macOS, add `--native` for a faster build for your Mac only. To distribute the Mac app, set `SIGN_IDENTITY="Developer ID Application: …"` and notarize.
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds every package above and publishes them as a GitHub Release.
@@ -153,7 +156,7 @@ naqsha --templates ./out                     # write every built-in template as 
 
 ## Roadmap
 
-- **Naqsha on the web:** the same editor in the browser at nixpx.com/naqsha, like draw.io, with no install
+- Open files from a URL in the browser version, and your own templates there
 - Comments and review mode
 - Visio stencil files (`.vssx`) as shape libraries
 - Data-linked shapes (CSV / JSON)
@@ -189,8 +192,10 @@ src/export.rs      SVG / PNG / PDF export
 src/formats/       vsdx.rs · drawio.rs · svgin.rs · pipeline.rs
 src/macos.rs       native menu bar, Finder integration
 src/platform.rs    per-OS glue: shortcut names, data folders
+src/files.rs       file dialogs and saving; the browser's file picker, downloads and tabs
 assets/            icon.svg (source), Naqsha.icns
 linux/  windows/   desktop entry, file types, installer
+web/               the browser page (index.html) and its fonts
 examples/          sample.nqs, make_icon.rs, render_svg.rs
 ```
 </details>

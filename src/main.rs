@@ -1,9 +1,12 @@
 //! Naqsha — a native diagramming app (Visio-style) written in Rust.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// the browser build leaves out the desktop-only parts (command line, menus, files on disk)
+#![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports, unused_variables, unused_mut))]
 
 mod app;
 mod canvas;
 mod export;
+mod files;
 mod formats;
 mod geom;
 mod icons;
@@ -72,6 +75,9 @@ impl App {
         // window title + close guard
         let title = format!("{}{} — Naqsha", self.title(), if self.dirty { " •" } else { "" });
         if title != self.last_title {
+            #[cfg(target_arch = "wasm32")]
+            files::web::set_title(&title);
+            #[cfg(not(target_arch = "wasm32"))]
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.last_title = title;
         }
@@ -85,8 +91,11 @@ impl App {
         }
         if self.allow_close && self.modal.is_none() { self.want_close = true; }
         // files dropped onto the window: diagrams, Visio/draw.io/SVG files and pipeline definitions
-        let dropped: Vec<std::path::PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect());
-        for p in dropped {
+        // in the browser a dropped file is read asynchronously, and has no path
+        #[cfg(target_arch = "wasm32")]
+        for f in ctx.input(|i| i.raw.dropped_files.clone()) { files::read_dropped(f); }
+        #[cfg(not(target_arch = "wasm32"))]
+        for p in ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect::<Vec<_>>()) {
             let name = p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
             let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
             let known = matches!(ext.as_str(), "nqs" | "schx" | "json" | "vsdx" | "drawio" | "xml" | "svg") || name.starts_with("jenkinsfile")
@@ -94,6 +103,7 @@ impl App {
             if known { self.open_or_spawn(p); }
             else if matches!(ext.as_str(), "png" | "jpg" | "jpeg") { self.notify("Use Insert › Picture to add images"); }
         }
+        self.handle_picked();
         for id in std::mem::take(&mut self.menu_queue) { ui::menu_command(self, ui, &id); }
 
         ui::shortcuts(self, &ctx);
@@ -175,6 +185,7 @@ fn cli_export(args: &[String]) -> Result<(), String> {
 
 /// The app was called Schemix before: carry its saved settings (recent files, stencil folders,
 /// theme, unsaved-diagram recovery) over to the new name once.
+#[cfg(not(target_arch = "wasm32"))]
 fn migrate_old_settings() {
     let (Some(new), Some(old)) = (eframe::storage_dir("com.nixpx.naqsha"), eframe::storage_dir("com.nixpx.schemix")) else { return };
     let (nf, of) = (new.join("app.ron"), old.join("app.ron"));
@@ -204,6 +215,7 @@ fn install_crash_log() {
     }));
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     install_crash_log();
     let args: Vec<String> = std::env::args().collect();
@@ -259,36 +271,75 @@ fn main() -> eframe::Result<()> {
     let mut winit_app = eframe::create_native(
         "Naqsha",
         options,
-        Box::new(move |cc| {
-            let _ = platform::CTX.set(cc.egui_ctx.clone());
-            cc.egui_ctx.set_fonts(theme::fonts());
-            icons::init(&cc.egui_ctx);
-            cc.egui_ctx.all_styles_mut(|s| {
-                s.spacing.button_padding = egui::vec2(8.0, 4.0);
-                s.spacing.interact_size.y = 24.0;
-                s.interaction.tooltip_delay = 0.4;
-            });
-            let set: Settings = cc.storage.and_then(|s| eframe::get_value(s, "settings")).unwrap_or_default();
-            // unsaved untitled diagrams from last session (one per window)
-            let mut recovered: Vec<model::Document> = if start_file.is_none() {
-                cc.storage.and_then(|s| eframe::get_value::<Vec<model::Document>>(s, "recovery_all"))
-                    .or_else(|| cc.storage.and_then(|s| eframe::get_value::<Option<model::Document>>(s, "recovery")).flatten().map(|d| vec![d]))
-                    .unwrap_or_default()
-            } else { vec![] };
-            let first = if recovered.is_empty() { None } else { Some(recovered.remove(0)) };
-            let recent = set.recent.clone();
-            let mut app = App::new(set.clone(), first);
-            app.offer_gallery = start_file.is_none();
-            if let Some(p) = start_file { app.load_path(p); }
-            let mut sh = shell::Shell::new(app, set);
-            sh.native_menu = platform::install_menu(&recent);
-            for d in recovered { sh.recover(d); }
-            Ok(Box::new(sh))
-        }),
+        Box::new(move |cc| Ok(Box::new(setup(cc, start_file.map(Start::File).unwrap_or(Start::Nothing))))),
         &event_loop,
     );
     event_loop.run_app(&mut winit_app).map_err(|e| eframe::Error::AppCreation(Box::new(e)))?;
     Ok(())
+}
+
+/// What a window starts with.
+#[allow(dead_code)]
+enum Start {
+    Nothing,
+    /// A file on disk (desktop: command line, Finder).
+    File(std::path::PathBuf),
+    /// A document handed over by another browser tab, or a template from the page URL.
+    Doc(model::Document, String),
+}
+
+/// Fonts, style, settings and the first window — shared by the desktop and browser builds.
+fn setup(cc: &eframe::CreationContext<'_>, start: Start) -> shell::Shell {
+    let _ = platform::CTX.set(cc.egui_ctx.clone());
+    cc.egui_ctx.set_fonts(theme::fonts());
+    icons::init(&cc.egui_ctx);
+    cc.egui_ctx.all_styles_mut(|s| {
+        s.spacing.button_padding = egui::vec2(8.0, 4.0);
+        s.spacing.interact_size.y = 24.0;
+        s.interaction.tooltip_delay = 0.4;
+    });
+    let set: Settings = cc.storage.and_then(|s| eframe::get_value(s, "settings")).unwrap_or_default();
+    // unsaved untitled diagrams from last session (one per window)
+    let mut recovered: Vec<model::Document> = if matches!(start, Start::Nothing) {
+        cc.storage.and_then(|s| eframe::get_value::<Vec<model::Document>>(s, "recovery_all"))
+            .or_else(|| cc.storage.and_then(|s| eframe::get_value::<Option<model::Document>>(s, "recovery")).flatten().map(|d| vec![d]))
+            .unwrap_or_default()
+    } else { vec![] };
+    // a browser tab is one window: it recovers one diagram
+    if files::WEB { recovered.truncate(1); }
+    let first = if recovered.is_empty() { None } else { Some(recovered.remove(0)) };
+    let recent = set.recent.clone();
+    let mut app = App::new(set.clone(), first);
+    app.offer_gallery = matches!(start, Start::Nothing);
+    match start {
+        Start::File(p) => app.load_path(p),
+        Start::Doc(d, name) => app.adopt(d, &name),
+        Start::Nothing => {}
+    }
+    let mut sh = shell::Shell::new(app, set);
+    sh.native_menu = platform::install_menu(&recent);
+    for d in recovered { sh.recover(d); }
+    sh
+}
+
+/// The browser version: draws into the page's canvas.
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    use wasm_bindgen::JsCast;
+    eframe::WebLogger::init(log::LevelFilter::Error).ok();
+    files::web::install_unload_guard();
+    let start = match files::web::start_document() { Some((d, name)) => Start::Doc(d, name), None => Start::Nothing };
+    wasm_bindgen_futures::spawn_local(async move {
+        let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
+        let Some(canvas) = document.get_element_by_id("naqsha_canvas").and_then(|c| c.dyn_into::<web_sys::HtmlCanvasElement>().ok()) else { return };
+        let r = eframe::WebRunner::new().start(canvas, eframe::WebOptions::default(), Box::new(move |cc| Ok(Box::new(setup(cc, start))))).await;
+        if let Some(el) = document.get_element_by_id("loading") {
+            match r {
+                Ok(_) => el.remove(),
+                Err(e) => el.set_inner_html(&format!("<p>Naqsha couldn't start in this browser: {e:?}</p><p>It needs WebGL. Try a current Chrome, Edge, Firefox or Safari.</p>")),
+            }
+        }
+    });
 }
 
 #[cfg(test)]

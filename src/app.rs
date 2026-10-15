@@ -143,6 +143,8 @@ pub struct App {
     pub focus_shape: Option<Id>,
     /// Windows this one asks the window manager to open.
     pub spawn: Vec<Spawn>,
+    /// Files chosen in a file dialog, waiting to be used.
+    pub picked: Vec<crate::files::Picked>,
     /// The window has agreed to close (nothing unsaved, or the user chose).
     pub want_close: bool,
     /// The window had keyboard focus last frame.
@@ -165,7 +167,7 @@ impl App {
             doc: Document::default(), pi: 0, sel: vec![], tool: Tool::Pointer, zoom: 1.0, pan: vec2(40.0, 40.0), fit_pending: true, set, path: None, dirty: false,
             undo: vec![], redo: vec![], coalesce: None, drag: Drag::None, hover: None, guides: vec![], glue: None, edit: None, painter_style: None,
             tab: Tab::Home, search: String::new(), images: HashMap::new(), toast: None, modal: None, open_path_pending: None, allow_close: false, renaming: None,
-            last_title: String::new(), recovery, pal: theme::LIGHT, ctx_menu: None, offer_gallery: false, ctx_menu_page: 0, ctx_menu_t: 0.0, stencil_drag: None, canvas_rect: Rect::NOTHING, mouse_world: None, paste_count: 0.0, now: 0.0, imported_name: None, user_lib: vec![], user_lib_loaded: false, thumbs: HashMap::new(), nav: vec![], focus_shape: None, spawn: vec![], want_close: false, focused: false, menu_queue: vec![], gallery: Gallery::default(),
+            last_title: String::new(), recovery, pal: theme::LIGHT, ctx_menu: None, offer_gallery: false, ctx_menu_page: 0, ctx_menu_t: 0.0, stencil_drag: None, canvas_rect: Rect::NOTHING, mouse_world: None, paste_count: 0.0, now: 0.0, imported_name: None, user_lib: vec![], user_lib_loaded: false, thumbs: HashMap::new(), nav: vec![], focus_shape: None, spawn: vec![], picked: vec![], want_close: false, focused: false, menu_queue: vec![], gallery: Gallery::default(),
         }
     }
 
@@ -293,7 +295,15 @@ impl App {
     }
 
     pub fn add_stencil_folder(&mut self) {
+        #[cfg(target_arch = "wasm32")]
+        { self.notify("Stencil folders need the desktop app"); return; }
+        #[cfg(not(target_arch = "wasm32"))]
         let Some(dir) = rfd::FileDialog::new().set_title("Choose a folder of SVG icons").pick_folder() else { return };
+        #[cfg(not(target_arch = "wasm32"))]
+        self.add_stencil_dir(dir);
+    }
+    #[allow(dead_code)]
+    fn add_stencil_dir(&mut self, dir: PathBuf) {
         let d = dir.to_string_lossy().to_string();
         if !self.set.stencil_dirs.contains(&d) { self.set.stencil_dirs.push(d.clone()); }
         let before = self.user_lib.iter().map(|g| g.icons.len()).sum::<usize>();
@@ -690,10 +700,18 @@ impl App {
         self.set.recent.truncate(8);
     }
     pub fn load_path(&mut self, path: PathBuf) {
+        let bytes = std::fs::read(&path).map_err(|e| e.to_string());
+        let name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        self.load_bytes(&name, Some(path), bytes);
+    }
+
+    /// Open a file's contents in this window. `path` is where it lives on disk (desktop only).
+    pub fn load_bytes(&mut self, name: &str, path: Option<PathBuf>, bytes: Result<Vec<u8>, String>) {
         // a file arriving (Finder, drag and drop) answers the "what do you want to open?" question
         if matches!(self.modal, Some(Modal::NewDiagram)) { self.modal = None; }
         self.offer_gallery = false;
-        match read_any(&path) {
+        let fname = std::path::Path::new(name);
+        match bytes.and_then(|b| read_bytes(name, b)) {
             Ok((mut d, notes, native)) => {
                 if d.pages.is_empty() { d = Document::default(); }
                 d.fix_ids();
@@ -703,18 +721,20 @@ impl App {
                 self.undo.clear();
                 self.redo.clear();
                 self.images.clear();
-                self.add_recent(&path);
+                if let Some(p) = &path { self.add_recent(p); }
                 self.fit_pending = true;
+                self.nav.clear();
                 if native {
                     self.dirty = false;
-                    self.path = Some(path);
-                    self.imported_name = None;
+                    // in the browser there is no path: the file name stays as the title
+                    self.imported_name = if path.is_none() { fname.file_stem().map(|s| s.to_string_lossy().to_string()) } else { None };
+                    self.path = path;
                 } else {
                     // imported: saving goes to a new .nqs (or Save As to Visio/draw.io)
                     self.dirty = true;
-                    self.imported_name = path.file_stem().map(|s| s.to_string_lossy().to_string());
+                    self.imported_name = fname.file_stem().map(|s| s.to_string_lossy().to_string());
                     self.path = None;
-                    let ext = path.extension().map(|e| e.to_string_lossy().to_uppercase()).unwrap_or_default();
+                    let ext = fname.extension().map(|e| e.to_string_lossy().to_uppercase()).unwrap_or_default();
                     let mut msg = format!("Imported {ext} — {} page(s)", self.doc.pages.len());
                     for n in notes { msg.push_str(" · "); msg.push_str(&n); }
                     self.notify(msg);
@@ -724,15 +744,36 @@ impl App {
         }
     }
     pub fn open_dialog(&mut self) {
-        if let Some(p) = rfd::FileDialog::new()
-            .add_filter("All supported", &["nqs", "schx", "vsdx", "drawio", "xml", "svg", "json", "yml", "yaml", "groovy", "jenkinsfile"])
-            .add_filter("Naqsha diagram", &["nqs", "schx"])
-            .add_filter("Microsoft Visio", &["vsdx"])
-            .add_filter("draw.io / diagrams.net", &["drawio", "xml"])
-            .add_filter("SVG", &["svg"])
-            .add_filter("CI/CD pipeline (GitHub, GitLab, Azure, Bitbucket, Jenkins)", &["yml", "yaml", "groovy", "jenkinsfile"])
-            .pick_file()
-        { self.open_or_spawn(p); }
+        self.pick_file(crate::files::Purpose::Open, "Open", crate::files::OPEN_FILTERS);
+    }
+
+    /// Use the files picked since the last frame.
+    pub fn handle_picked(&mut self) {
+        use crate::files::Purpose;
+        for f in self.take_picked() {
+            match f.purpose {
+                Purpose::Open => match f.path {
+                    Some(p) => self.open_or_spawn(p),
+                    None => self.open_bytes(&f.name, f.bytes),
+                },
+                Purpose::Script => self.insert_script(&f.name, f.path.as_deref(), f.bytes),
+                Purpose::Pipeline => self.insert_pipeline(&f.name, f.bytes),
+                Purpose::Image => self.insert_image_bytes(f.bytes),
+            }
+        }
+    }
+
+    /// Open a file that has no path (browser): here if this window has nothing to lose,
+    /// otherwise in a new tab.
+    pub fn open_bytes(&mut self, name: &str, bytes: Result<Vec<u8>, String>) {
+        if self.is_pristine() || !self.dirty || !crate::files::WEB { self.load_bytes(name, None, bytes); return; }
+        match bytes.and_then(|b| read_bytes(name, b)) {
+            Ok((doc, _, _)) => {
+                let title = std::path::Path::new(name).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                self.spawn.push(Spawn::Doc(doc, title));
+            }
+            Err(e) => self.notify(format!("Couldn't open file: {e}")),
+        }
     }
 
     /// Nothing to lose: an untitled, unchanged, empty document.
@@ -771,8 +812,12 @@ impl App {
 
     /// Save the current diagram into the user's templates folder.
     pub fn save_as_template(&mut self) {
+        if crate::files::WEB { self.notify("Saving templates needs the desktop app"); return; }
         let Some(dir) = crate::templates::user_dir() else { self.notify("No templates folder available"); return };
         let _ = std::fs::create_dir_all(&dir);
+        #[cfg(target_arch = "wasm32")]
+        let p = dir.join(format!("{}.nqs", self.title()));
+        #[cfg(not(target_arch = "wasm32"))]
         let Some(p) = rfd::FileDialog::new().set_title("Save as Template").set_directory(&dir).add_filter("Naqsha template", &["nqs"]).set_file_name(&format!("{}.nqs", self.title())).save_file() else { return };
         let p = if p.extension().is_none() { p.with_extension("nqs") } else { p };
         match write_foreign(&self.doc, &p) {
@@ -782,15 +827,24 @@ impl App {
     }
     /// Returns true if saved. Save As can also write Visio (.vsdx) or draw.io files.
     pub fn save(&mut self, save_as: bool) -> bool {
+        #[cfg(target_arch = "wasm32")]
+        {
+            // the browser saves by downloading a .nqs; Export has Visio and draw.io
+            let _ = save_as;
+            let name = format!("{}.nqs", self.title());
+            return match serde_json::to_string_pretty(&self.doc).map_err(|e| e.to_string()).and_then(|t| crate::files::download(&name, t.as_bytes(), "application/json")) {
+                Ok(_) => { self.dirty = false; self.imported_name = Some(self.title()); self.notify(format!("Downloaded {name}")); true }
+                Err(e) => { self.notify(format!("Save failed: {e}")); false }
+            };
+        }
+        #[allow(unreachable_code)]
         let path = if save_as || self.path.is_none() {
             let name = format!("{}.nqs", self.title());
-            match rfd::FileDialog::new()
-                .add_filter("Naqsha diagram", &["nqs"])
-                .add_filter("Microsoft Visio drawing", &["vsdx"])
-                .add_filter("draw.io diagram", &["drawio"])
-                .set_file_name(&name)
-                .save_file()
+            #[cfg(not(target_arch = "wasm32"))]
+            match crate::files::save_dialog("Save", &name, &[("Naqsha diagram", &["nqs"]), ("Microsoft Visio drawing", &["vsdx"]), ("draw.io diagram", &["drawio"])])
             { Some(p) => p, None => return false }
+            #[cfg(target_arch = "wasm32")]
+            PathBuf::from(name)
         } else { self.path.clone().unwrap() };
         let path = if path.extension().is_none() { path.with_extension("nqs") } else { path };
         let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
@@ -821,8 +875,10 @@ impl App {
 
     /// Insert a shell script (or any text file) as a script block showing its code.
     pub fn insert_script_file(&mut self) {
-        let Some(path) = rfd::FileDialog::new().set_title("Insert Script File").pick_file() else { return };
-        let Ok(bytes) = std::fs::read(&path) else { self.notify("Couldn't read the file"); return };
+        self.pick_file(crate::files::Purpose::Script, "Insert Script File", &[]);
+    }
+    fn insert_script(&mut self, name: &str, path: Option<&std::path::Path>, bytes: Result<Vec<u8>, String>) {
+        let Ok(bytes) = bytes else { self.notify("Couldn't read the file"); return };
         let text = String::from_utf8_lossy(&bytes).replace("\r\n", "\n");
         if text.contains('\0') { self.notify("That doesn't look like a text file"); return; }
         let c = self.view_center_world();
@@ -835,7 +891,8 @@ impl App {
         s.x = c.x - s.w / 2.0;
         s.y = c.y - s.h / 2.0;
         s.text = text.trim_end().to_string();
-        s.data = vec![("file".into(), path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()), ("path".into(), path.to_string_lossy().to_string())];
+        s.data = vec![("file".into(), name.to_string())];
+        if let Some(p) = path { s.data.push(("path".into(), p.to_string_lossy().to_string())); }
         let id = s.id;
         self.page_mut().shapes.push(s);
         self.sel = vec![id];
@@ -843,10 +900,11 @@ impl App {
 
     /// Read a CI/CD pipeline definition and add its diagram pages to this document.
     pub fn insert_pipeline_file(&mut self) {
-        let Some(path) = rfd::FileDialog::new().set_title("Insert Pipeline (GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket, Jenkinsfile)").pick_file() else { return };
-        let text = match std::fs::read(&path) { Ok(b) => String::from_utf8_lossy(&b).to_string(), Err(e) => { self.notify(format!("Couldn't read the file: {e}")); return } };
-        let name = path.to_string_lossy().to_string();
-        let name = if path.extension().is_none() { "Jenkinsfile".to_string() } else { name };
+        self.pick_file(crate::files::Purpose::Pipeline, "Insert Pipeline (GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket, Jenkinsfile)", &[]);
+    }
+    fn insert_pipeline(&mut self, name: &str, bytes: Result<Vec<u8>, String>) {
+        let text = match bytes { Ok(b) => String::from_utf8_lossy(&b).to_string(), Err(e) => { self.notify(format!("Couldn't read the file: {e}")); return } };
+        let name = if std::path::Path::new(name).extension().is_none() { "Jenkinsfile".to_string() } else { name.to_string() };
         match crate::formats::pipeline::import(&name, &text) {
             Ok(imp) => {
                 self.checkpoint();
@@ -859,8 +917,10 @@ impl App {
     }
 
     pub fn insert_image(&mut self) {
-        let Some(path) = rfd::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg"]).pick_file() else { return };
-        let Ok(bytes) = std::fs::read(&path) else { self.notify("Couldn't read image"); return };
+        self.pick_file(crate::files::Purpose::Image, "Insert Picture", &[("Image", &["png", "jpg", "jpeg"])]);
+    }
+    fn insert_image_bytes(&mut self, bytes: Result<Vec<u8>, String>) {
+        let Ok(bytes) = bytes else { self.notify("Couldn't read image"); return };
         let Ok(img) = image::load_from_memory(&bytes) else { self.notify("Unsupported image"); return };
         use base64::Engine;
         let mut png = vec![];
@@ -905,8 +965,14 @@ impl App {
 
 /// Read any supported file. Returns (document, notes, is_native) — native means .nqs (or the older .schx).
 pub fn read_any(path: &std::path::Path) -> Result<(Document, Vec<String>, bool), String> {
-    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    read_bytes(&path.to_string_lossy(), bytes)
+}
+
+/// Read a file's contents; `name` (a file name or path) tells the format.
+pub fn read_bytes(name: &str, bytes: Vec<u8>) -> Result<(Document, Vec<String>, bool), String> {
+    let path = std::path::Path::new(name);
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
     let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Page-1".into());
     match ext.as_str() {
         "vsdx" | "vstx" | "vssx" => crate::formats::vsdx::import(bytes).map(|i| (i.doc, i.notes, false)),
@@ -932,13 +998,17 @@ pub fn read_any(path: &std::path::Path) -> Result<(Document, Vec<String>, bool),
 }
 
 pub fn write_foreign(doc: &Document, path: &std::path::Path) -> Result<(), String> {
+    std::fs::write(path, foreign_bytes(doc, path)?).map_err(|e| e.to_string())
+}
+
+/// A document in the format its file name asks for (.vsdx, .drawio, otherwise .nqs).
+pub fn foreign_bytes(doc: &Document, path: &std::path::Path) -> Result<Vec<u8>, String> {
     let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-    let bytes = match ext.as_str() {
+    Ok(match ext.as_str() {
         "vsdx" => crate::formats::vsdx::export(doc)?,
         "drawio" | "xml" => crate::formats::drawio::export(doc).into_bytes(),
         _ => serde_json::to_string_pretty(doc).map_err(|e| e.to_string())?.into_bytes(),
-    };
-    std::fs::write(path, bytes).map_err(|e| e.to_string())
+    })
 }
 
 pub fn mode_name(m: crate::layout::Mode) -> &'static str {

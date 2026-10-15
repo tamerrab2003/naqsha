@@ -159,7 +159,7 @@ pub fn page_svg(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painte
 
 fn tree(svg: &str) -> Result<resvg::usvg::Tree, String> {
     let mut opt = resvg::usvg::Options::default();
-    opt.fontdb_mut().load_system_fonts();
+    load_fonts(opt.fontdb_mut());
     resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| e.to_string())
 }
 
@@ -172,6 +172,29 @@ pub fn svg_to_png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
 }
 
 pub fn svg_to_pdf(svg: &str) -> Result<Vec<u8>, String> {
-    let t = svg2pdf::usvg::Tree::from_str(svg, &{ let mut o = svg2pdf::usvg::Options::default(); o.fontdb_mut().load_system_fonts(); o }).map_err(|e| e.to_string())?;
+    let t = svg2pdf::usvg::Tree::from_str(svg, &{ let mut o = svg2pdf::usvg::Options::default(); load_fonts(o.fontdb_mut()); o }).map_err(|e| e.to_string())?;
     svg2pdf::to_pdf(&t, svg2pdf::ConversionOptions::default(), svg2pdf::PageOptions::default()).map_err(|e| format!("{e:?}"))
+}
+
+/// Fonts for PNG/PDF export. The desktop uses the system's; the browser has none, so it uses the
+/// fonts built into the app (DejaVu Sans, as on screen, and egui's monospace font).
+fn load_fonts(db: &mut svg2pdf::usvg::fontdb::Database) {
+    #[cfg(not(target_arch = "wasm32"))]
+    db.load_system_fonts();
+    #[cfg(target_arch = "wasm32")]
+    {
+        db.load_font_data(include_bytes!("../web/fonts/DejaVuSans.ttf").to_vec());
+        db.load_font_data(include_bytes!("../web/fonts/DejaVuSans-Bold.ttf").to_vec());
+        let defs = egui::FontDefinitions::default();
+        let mut mono = None;
+        for (name, data) in &defs.font_data {
+            if !name.contains("Hack") { continue; }
+            let before = db.len();
+            db.load_font_data(data.font.to_vec());
+            mono = db.faces().nth(before).and_then(|f| f.families.first().map(|(n, _)| n.clone()));
+        }
+        db.set_sans_serif_family("DejaVu Sans");
+        db.set_serif_family("DejaVu Sans");
+        if let Some(f) = mono { db.set_monospace_family(f); }
+    }
 }

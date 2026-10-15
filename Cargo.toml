@@ -10,9 +10,8 @@ repository = "https://github.com/tamerrab2003/naqsha"
 readme = "README.md"
 
 [dependencies]
-eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "persistence", "x11", "wayland"] }
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "persistence"] }
 egui = "0.36"
-winit = "0.30"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "pollster"] }
@@ -26,6 +25,19 @@ roxmltree = "0.21"
 flate2 = "1"
 yaml-rust2 = "0.10"
 
+# desktop (macOS, Windows, Linux)
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+eframe = { version = "0.36", default-features = false, features = ["x11", "wayland"] }
+winit = "0.30"
+
+# the browser version (nixpx.com/naqsha/app)
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Storage", "Location", "UrlSearchParams", "BeforeUnloadEvent", "Event", "Navigator"] }
+log = "0.4"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = "0.21"
 objc2 = "0.6"
@@ -37,6 +49,15 @@ winresource = "0.1"
 
 [profile.release]
 debug = "line-tables-only"
+
+# smaller, faster browser build: cargo build --profile web --target wasm32-unknown-unknown
+[profile.web]
+inherits = "release"
+debug = false
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
 
 # ---- Linux packages (cargo deb --no-build / cargo generate-rpm) ----
 # The binary loads X11, Wayland and OpenGL at run time, so these are runtime dependencies only.

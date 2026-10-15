@@ -173,12 +173,18 @@ pub fn fonts() -> FontDefinitions {
         "/Library/Fonts/Arial Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     ];
-    if let Some(bytes) = candidates_regular.iter().find_map(|p| std::fs::read(p).ok()) {
+    // the browser has no font files to read: it carries a subset of DejaVu Sans (web/fonts),
+    // which has the arrows, symbols and Arabic letters egui's built-in font lacks
+    #[cfg(target_arch = "wasm32")]
+    let (web_regular, web_bold): (Option<Vec<u8>>, Option<Vec<u8>>) = (Some(include_bytes!("../web/fonts/DejaVuSans.ttf").to_vec()), Some(include_bytes!("../web/fonts/DejaVuSans-Bold.ttf").to_vec()));
+    #[cfg(not(target_arch = "wasm32"))]
+    let (web_regular, web_bold): (Option<Vec<u8>>, Option<Vec<u8>>) = (None, None);
+    if let Some(bytes) = web_regular.or_else(|| candidates_regular.iter().find_map(|p| std::fs::read(p).ok())) {
         f.font_data.insert("system".into(), Arc::new(FontData::from_owned(bytes)));
         f.families.entry(FontFamily::Proportional).or_default().insert(0, "system".into());
     }
     let mut bold_list = vec![];
-    if let Some(bytes) = candidates_bold.iter().find_map(|p| std::fs::read(p).ok()) {
+    if let Some(bytes) = web_bold.or_else(|| candidates_bold.iter().find_map(|p| std::fs::read(p).ok())) {
         f.font_data.insert("system-bold".into(), Arc::new(FontData::from_owned(bytes)));
         bold_list.push("system-bold".to_string());
     }

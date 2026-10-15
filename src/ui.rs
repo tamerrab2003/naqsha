@@ -203,11 +203,11 @@ pub fn top(app: &mut App, ui: &mut Ui) {
 
 fn ribbon_file(app: &mut App, ui: &mut Ui, pal: &Pal) {
     group(ui, pal, "Document", |ui| {
-        if big(ui, pal, "newdoc", "New", "New diagram from a template — opens in a new window (⌘N)").clicked() { app.modal = Some(Modal::NewDiagram); }
-        if big(ui, pal, "open", "Open", "Open… — opens in a new window unless this one is empty (⌘O)").clicked() { app.open_dialog(); }
+        if big(ui, pal, "newdoc", "New", &format!("New diagram from a template — opens in a new {} (⌘N)", crate::files::WINDOW)).clicked() { app.modal = Some(Modal::NewDiagram); }
+        if big(ui, pal, "open", "Open", &format!("Open… — opens in a new {} unless this one is empty (⌘O)", crate::files::WINDOW)).clicked() { app.open_dialog(); }
         if big(ui, pal, "save", "Save", "Save (⌘S)").clicked() { app.save(false); }
         if big(ui, pal, "saveAs", "Save As", "Save As… (⇧⌘S)").clicked() { app.save(true); }
-        if big(ui, pal, "template", "As Template", "Save this diagram as a template — it appears under New › My Templates").clicked() { app.save_as_template(); }
+        if !crate::files::WEB && big(ui, pal, "template", "As Template", "Save this diagram as a template — it appears under New › My Templates").clicked() { app.save_as_template(); }
     });
     group(ui, pal, "Export", |ui| {
         if big(ui, pal, "image", "PNG", "Export current page as PNG").clicked() { do_export(app, ui, "png"); }
@@ -216,7 +216,7 @@ fn ribbon_file(app: &mut App, ui: &mut Ui, pal: &Pal) {
         if big(ui, pal, "export", "Visio", "Export all pages as a Visio drawing (.vsdx)").clicked() { do_export(app, ui, "vsdx"); }
         if big(ui, pal, "export", "draw.io", "Export all pages as a draw.io diagram").clicked() { do_export(app, ui, "drawio"); }
     });
-    group(ui, pal, "Recent", |ui| {
+    if !crate::files::WEB { group(ui, pal, "Recent", |ui| {
         ui.vertical(|ui| {
             if app.set.recent.is_empty() { ui.label(RichText::new("No recent diagrams").color(pal.faint)); }
             let mut open = None;
@@ -226,7 +226,7 @@ fn ribbon_file(app: &mut App, ui: &mut Ui, pal: &Pal) {
             }
             if let Some(p) = open { app.open_path_pending = Some(p.into()); app.guard(Pending::OpenPath); }
         });
-    });
+    }); }
     group(ui, pal, "About", |ui| {
         if big(ui, pal, "info", "About", "About Naqsha").clicked() { app.modal = Some(Modal::About); }
         if big(ui, pal, "keyboard", "Shortcuts", "Keyboard shortcuts").clicked() { app.modal = Some(Modal::Shortcuts); }
@@ -361,9 +361,9 @@ fn ribbon_insert(app: &mut App, ui: &mut Ui, pal: &Pal) {
         if big(ui, pal, "pipeline", "Pipeline", "Draw a CI/CD pipeline from its definition file: GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines or a Jenkinsfile").clicked() { app.insert_pipeline_file(); }
         if big(ui, pal, "script", "Script File", "Insert a script or config file as a code block").clicked() { app.insert_script_file(); }
     });
-    group(ui, pal, "Stencils", |ui| {
+    if !crate::files::WEB { group(ui, pal, "Stencils", |ui| {
         if big(ui, pal, "open", "Add Folder", "Load a folder of SVG icons (for example an official cloud icon package) as shape groups").clicked() { app.add_stencil_folder(); }
-    });
+    }); }
 }
 
 fn ribbon_design(app: &mut App, ui: &mut Ui, pal: &Pal) {
@@ -532,13 +532,17 @@ pub fn do_export(app: &mut App, ui: &Ui, ext: &str) {
     let painter = ui.painter().clone();
     let (svg, _, _) = export::page_svg(Some(&app.doc), app.page(), &app.pal, &painter, 24.0);
     let name = if ext == "vsdx" || ext == "drawio" { format!("{}.{ext}", app.title()) } else { format!("{} - {}.{ext}", app.title(), app.page().name) };
+    #[cfg(not(target_arch = "wasm32"))]
     let Some(path) = rfd::FileDialog::new().add_filter(ext.to_uppercase(), &[ext]).set_file_name(&name).save_file() else { return };
-    let res = match ext {
-        "vsdx" | "drawio" => crate::app::write_foreign(&app.doc, &path),
-        "svg" => std::fs::write(&path, svg.as_bytes()).map_err(|e| e.to_string()),
-        "png" => export::svg_to_png(&svg, 2.0).and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string())),
-        _ => export::svg_to_pdf(&svg).and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string())),
+    #[cfg(target_arch = "wasm32")]
+    let path = std::path::PathBuf::from(&name);
+    let bytes = match ext {
+        "vsdx" | "drawio" => crate::app::foreign_bytes(&app.doc, &path),
+        "svg" => Ok(svg.into_bytes()),
+        "png" => export::svg_to_png(&svg, 2.0),
+        _ => export::svg_to_pdf(&svg),
     };
+    let res = bytes.and_then(|b| crate::files::deliver(&path, &b));
     match res { Ok(_) => app.notify(format!("Exported {}", path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default())), Err(e) => app.notify(format!("Export failed: {e}")) }
 }
 
@@ -599,10 +603,10 @@ pub fn left(app: &mut App, ui: &mut Ui) {
             }
             if let Some(r) = remove { app.remove_stencil_folder(&r); }
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
+            if !crate::files::WEB { ui.horizontal(|ui| {
                 ui.add_space(10.0);
                 if ui.button("+  Add stencil folder…").on_hover_text("Load a folder of SVG icons (for example an official cloud icon package) as shape groups").clicked() { app.add_stencil_folder(); }
-            });
+            }); }
             ui.add_space(30.0);
         });
     });
@@ -1082,7 +1086,8 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
     let mut remove: Option<std::path::PathBuf> = None;
     let mut open_file = false;
     let mut open_recent: Option<std::path::PathBuf> = None;
-    let cats = crate::templates::CATS;
+    // the browser version has no templates folder of its own
+    let cats = if crate::files::WEB { &crate::templates::CATS[..crate::templates::CATS.len() - 1] } else { crate::templates::CATS };
     let r = egui::Modal::new(EId::new("new-diagram")).show(ctx, |ui| {
         let avail = ctx.content_rect();
         let w = (avail.width() - 80.0).clamp(640.0, 1060.0);
@@ -1095,7 +1100,7 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
                 if te.changed() { app.gallery.cat = 0; }
             });
         });
-        ui.label(RichText::new("Pick a starting point. It opens in a new window if this one already has a diagram.").color(pal.muted).size(12.0));
+        ui.label(RichText::new(format!("Pick a starting point. It opens in a new {} if this one already has a diagram.", crate::files::WINDOW)).color(pal.muted).size(12.0));
         ui.add_space(8.0);
         let entries = app.gallery.entries.as_ref().unwrap();
         let q = app.gallery.search.trim().to_lowercase();
