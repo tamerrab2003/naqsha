@@ -166,6 +166,7 @@ pub fn page_svg_area(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &P
 }
 
 /// Parse an SVG made by this module (with the fonts used for export).
+#[cfg_attr(not(feature = "pro"), allow(dead_code))]
 pub fn svg_tree(svg: &str) -> Result<resvg::usvg::Tree, String> { tree(svg) }
 
 fn tree(svg: &str) -> Result<resvg::usvg::Tree, String> {
