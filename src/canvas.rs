@@ -54,14 +54,14 @@ fn shape_hit(s: &Shape, p: Pos2, z: f32) -> bool {
 
 fn find_glue(page: &Page, p: Pos2, z: f32, exclude: Option<Id>) -> Option<(Id, i32)> {
     let th = 10.0 / z;
-    for s in page.shapes.iter().rev().filter(|s| page.shape_shown(s)) {
+    for s in page.shapes.iter().rev().filter(|s| page.shape_shown(s) && !page.in_background(s)) {
         if Some(s.id) == exclude { continue; }
         for (i, pt) in geom::ports(s).iter().enumerate() {
             if (pt.pos - p).length() < th { return Some((s.id, i as i32)); }
         }
     }
     for pass in 0..2 {
-        for s in page.shapes.iter().rev().filter(|s| page.shape_shown(s)) {
+        for s in page.shapes.iter().rev().filter(|s| page.shape_shown(s) && !page.in_background(s)) {
             if Some(s.id) == exclude || library::is_container(&s.kind) != (pass == 1) { continue; }
             if geom::contains(s, p, 0.0) { return Some((s.id, -1)); }
         }
@@ -801,11 +801,15 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
     let vis_world = Rect::from_min_max(v.w(crect.min), v.w(crect.max)).expand(60.0);
     for s in &page.shapes {
         if !page.shape_shown(s) || !geom::bbox(s).intersects(vis_world) { continue; }
-        render::draw_shape(&cx, &mut out, s, editing != Some((s.id, false)));
+        render::draw_shape(&cx, &mut out, s, editing != Some((s.id, false)) && !render::label_drawn_last(s));
     }
     for (ci, route) in render::page_routes(page) {
         let c = &page.conns[ci];
         render::draw_conn(&cx, &mut out, c, route, page_bg, editing != Some((c.id, true)));
+    }
+    for s in page.shapes.iter().filter(|s| render::label_drawn_last(s) && editing != Some((s.id, false))) {
+        if !page.shape_shown(s) || !geom::bbox(s).expand(60.0).intersects(vis_world) { continue; }
+        out.extend(render::masked_label(&cx, s, page_bg));
     }
     painter.extend(out);
 

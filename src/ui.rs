@@ -582,6 +582,8 @@ pub fn left(app: &mut App, ui: &mut Ui) {
                     });
                 });
             }
+            // engineering symbol groups from Naqsha Pro
+            crate::pro::stencils(app, ui, &q);
             // groups from the user's stencil folders
             if !app.user_lib_loaded { app.load_user_lib(); }
             let mut remove: Option<String> = None;
@@ -699,8 +701,8 @@ pub fn stencil_ghost(app: &App, ctx: &egui::Context) {
     }
     let d = library::def(kind);
     let z = if app.canvas_rect.contains(p) { app.zoom } else { 0.6 };
-    let s = Shape { kind: kind.clone(), w: d.w, h: d.h, text: d.text0.into(), style: library::default_style(kind), ..Default::default() };
-    let v = View { origin: p - vec2(d.w, d.h) * z / 2.0, pan: egui::Vec2::ZERO, zoom: z };
+    let s = crate::pro::symbol(kind).unwrap_or_else(|| Shape { kind: kind.clone(), w: d.w, h: d.h, text: d.text0.into(), style: library::default_style(kind), ..Default::default() });
+    let v = View { origin: p - vec2(s.w, s.h) * z / 2.0, pan: egui::Vec2::ZERO, zoom: z };
     let pal = app.pal;
     let empty = HashMap::new();
     let cx = Ctx { painter: &painter, view: v, pal: &pal, images: &empty, doc: None, depth: 0 };
@@ -1080,11 +1082,13 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
     let pal = app.pal;
     if app.gallery.entries.is_none() {
         let mut v = crate::templates::builtin();
+        v.extend(crate::pro::templates());
         if let Some(d) = crate::templates::user_dir() { v.extend(crate::templates::user(&d)); }
         app.gallery.entries = Some(v);
     }
     let mut open = true;
     let mut create: Option<(Document, String)> = None;
+    let mut create_id = String::new();
     let mut remove: Option<std::path::PathBuf> = None;
     let mut open_file = false;
     let mut open_recent: Option<std::path::PathBuf> = None;
@@ -1116,6 +1120,8 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
                 ui.set_width(186.0);
                 for (i, c) in cats.iter().enumerate() {
                     let n = if i == 0 { entries.len() } else { entries.iter().filter(|e| e.cat == *c).count() };
+                    // categories filled by Naqsha Pro stay hidden in a build without it
+                    if n == 0 && *c == "Water & Process" { continue; }
                     let on = app.gallery.cat == i;
                     let (rect, resp) = ui.allocate_exact_size(vec2(180.0, 28.0), Sense::click());
                     if on { ui.painter().rect_filled(rect, 6.0, with_alpha(pal.accent, 0.14)); } else if resp.hovered() { ui.painter().rect_filled(rect, 6.0, pal.hover); }
@@ -1191,7 +1197,7 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
                             }
                             let resp = resp.on_hover_text(&e.desc);
                             if resp.clicked() { app.gallery.sel = Some(e.id.clone()); }
-                            if resp.double_clicked() { create = Some((e.doc.clone(), e.name.clone())); }
+                            if resp.double_clicked() { create = Some((e.doc.clone(), e.name.clone())); create_id = e.id.clone(); }
                         }
                     });
                     ui.add_space(10.0);
@@ -1208,7 +1214,7 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let ok = ui.add_enabled(cur.is_some(), egui::Button::new(RichText::new("Create").color(Color32::WHITE).strong()).fill(pal.accent).min_size(vec2(90.0, 28.0)));
-                if ok.clicked() || (cur.is_some() && ui.input(|i| i.key_pressed(Key::Enter))) { if let Some(e) = cur { create = Some((e.doc.clone(), e.name.clone())); } }
+                if ok.clicked() || (cur.is_some() && ui.input(|i| i.key_pressed(Key::Enter))) { if let Some(e) = cur { create = Some((e.doc.clone(), e.name.clone())); create_id = e.id.clone(); } }
                 if ui.add(egui::Button::new("Cancel").min_size(vec2(80.0, 28.0))).clicked() { open = false; }
             });
         });
@@ -1217,7 +1223,12 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
     if let Some(p) = remove { let _ = std::fs::remove_file(&p); app.gallery.entries = None; }
     if open_file { app.open_dialog(); return false; }
     if let Some(p) = open_recent { app.open_or_spawn(p); return false; }
-    if let Some((doc, name)) = create { app.new_from(doc, &name); return false; }
+    if let Some((doc, name)) = create {
+        // Pro templates need Pro (a licence or the trial)
+        if create_id.starts_with("pro:") && !crate::pro::active(app) { app.modal = Some(Modal::Pro); return false; }
+        app.new_from(doc, &name);
+        return false;
+    }
     open
 }
 
@@ -1262,6 +1273,11 @@ pub fn modals(app: &mut App, ctx: &egui::Context) {
                     if ui.button("Close").clicked() { keep = false; }
                 });
             });
+            if r.should_close() { keep = false; }
+        }
+        Modal::Ext(name) => {
+            let name: &'static str = name;
+            let r = egui::Modal::new(EId::new(("ext", name))).show(ctx, |ui| { if !crate::pro::ext_dialog(app, ui, &pal, name) { keep = false; } });
             if r.should_close() { keep = false; }
         }
         Modal::Pro => {

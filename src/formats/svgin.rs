@@ -75,7 +75,7 @@ fn walk(ctx: &mut Ctx, g: &usvg::Group, group: Option<Id>, top: bool) {
                 let (w, h) = (b.width().max(0.5), b.height().max(0.5));
                 let paths = subs
                     .into_iter()
-                    .map(|(pts, closed)| CPath { pts: pts.iter().map(|(x, y)| [(x - b.left()) / w, (y - b.top()) / h]).collect(), closed: closed || fill.is_some(), fill: fill.is_some(), stroke: stroke.is_some() })
+                    .map(|(pts, closed)| CPath { pts: pts.iter().map(|(x, y)| [(x - b.left()) / w, (y - b.top()) / h]).collect(), closed: closed || fill.is_some(), fill: fill.is_some(), stroke: stroke.is_some(), ..Default::default() })
                     .collect();
                 let mut st = Style::default();
                 st.fill = Some(fill.unwrap_or(Col::NONE));

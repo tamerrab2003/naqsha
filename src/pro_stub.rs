@@ -49,3 +49,18 @@ pub fn dialog(_app: &mut App, ui: &mut Ui, pal: &Pal) -> bool {
     });
     keep
 }
+
+/// An engineering symbol by stencil id (Pro stencils only).
+pub fn symbol(_kind: &str) -> Option<crate::model::Shape> { None }
+
+/// The tag a new copy of `proto` gets (Pro numbers equipment tags).
+pub fn next_tag(_app: &App, proto: &crate::model::Shape) -> String { proto.text.clone() }
+
+/// Extra shape groups for the Shapes panel.
+pub fn stencils(_app: &mut App, _ui: &mut Ui, _query: &str) {}
+
+/// Extra templates for the New Diagram gallery.
+pub fn templates() -> Vec<crate::templates::Entry> { vec![] }
+
+/// A dialog of the Pro module (Modal::Ext). Returns false when it should close.
+pub fn ext_dialog(_app: &mut App, _ui: &mut Ui, _pal: &Pal, _name: &str) -> bool { false }

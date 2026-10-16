@@ -95,7 +95,16 @@ pub struct Edit {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Pending { Close, OpenPath }
 
-pub enum Modal { Unsaved(Pending), About, Shortcuts, NewDiagram, Pro }
+pub enum Modal {
+    Unsaved(Pending),
+    About,
+    Shortcuts,
+    NewDiagram,
+    Pro,
+    /// A dialog of the Pro module, by name.
+    #[allow(dead_code)]
+    Ext(&'static str),
+}
 
 /// A request for the window manager to open another window.
 pub enum Spawn {
@@ -275,8 +284,13 @@ impl App {
     pub fn make_shape(&mut self, kind: &str, center: Pos2) -> Shape {
         let d = library::def(kind);
         let id = self.doc.new_id();
-        let layer = self.page().active_layer.filter(|l| self.page().layer(Some(*l)).is_some());
-        let mut s = Shape { id, kind: kind.into(), w: d.w, h: d.h, text: d.text0.into(), style: library::default_style(kind), layer, ..Default::default() };
+        // never onto a background layer (a sheet): shapes there can't be selected
+        let layer = self.page().active_layer.filter(|l| self.page().layer(Some(*l)).map_or(false, |x| !x.background));
+        let mut s = match crate::pro::symbol(kind) {
+            // an engineering symbol from Naqsha Pro: it brings its own geometry, tag and data
+            Some(proto) => Shape { id, layer, text: crate::pro::next_tag(self, &proto), ..proto },
+            None => Shape { id, kind: kind.into(), w: d.w, h: d.h, text: d.text0.into(), style: library::default_style(kind), layer, ..Default::default() },
+        };
         s.x = center.x - s.w / 2.0;
         s.y = center.y - s.h / 2.0;
         if self.set.snap { s.x = geom::snap(s.x, self.set.grid_size / 2.0); s.y = geom::snap(s.y, self.set.grid_size / 2.0); }

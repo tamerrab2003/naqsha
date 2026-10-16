@@ -257,6 +257,24 @@ pub fn draw_shape(cx: &Ctx, out: &mut Vec<EShape>, s: &Shape, with_text: bool) {
     }
 }
 
+/// Engineering symbols keep their tag text out of the shape pass: it is drawn after the
+/// connectors, on a small backing in the page colour, so pipes never run through a tag.
+pub fn label_drawn_last(s: &Shape) -> bool { library::is_symbol(&s.kind) }
+
+/// The tag of a symbol with its backing (see `label_drawn_last`).
+pub fn masked_label(cx: &Ctx, s: &Shape, bg: Color32) -> Vec<EShape> {
+    let text = text_shapes(cx, s);
+    let mut out = vec![];
+    for t in &text {
+        if let EShape::Text(ts) = t {
+            let r = Rect::from_min_size(ts.pos, ts.galley.size()).expand(2.0 * cx.view.zoom);
+            out.push(EShape::rect_filled(r, 2.0 * cx.view.zoom, bg));
+        }
+    }
+    out.extend(text);
+    out
+}
+
 /// Text of a shape as egui text shapes (also used by the SVG exporter).
 pub fn text_shapes(cx: &Ctx, s: &Shape) -> Vec<EShape> {
     let mut out = vec![];

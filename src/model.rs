@@ -91,6 +91,10 @@ pub struct CPath {
     pub closed: bool,
     pub fill: bool,
     pub stroke: bool,
+    /// Filled with the line colour (solid valve bodies, arrow heads…).
+    pub solid: bool,
+    /// Drawn dashed.
+    pub dashed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -101,10 +105,13 @@ pub struct Layer {
     pub visible: bool,
     pub locked: bool,
     pub print: bool,
+    /// A background layer (e.g. a drawing sheet's frame and title block): shown and printed, but
+    /// shapes on it can't be selected, connectors don't glue to them or route around them.
+    pub background: bool,
 }
 
 impl Default for Layer {
-    fn default() -> Self { Layer { id: 0, name: "Layer 1".into(), visible: true, locked: false, print: true } }
+    fn default() -> Self { Layer { id: 0, name: "Layer 1".into(), visible: true, locked: false, print: true, background: false } }
 }
 
 impl Default for Shape {
@@ -185,7 +192,9 @@ impl Page {
     pub fn contains(&self, id: Id) -> bool { self.shape(id).is_some() || self.conn(id).is_some() }
     pub fn layer(&self, id: Option<Id>) -> Option<&Layer> { id.and_then(|i| self.layers.iter().find(|l| l.id == i)) }
     pub fn layer_visible(&self, id: Option<Id>) -> bool { self.layer(id).map_or(true, |l| l.visible) }
-    pub fn layer_locked(&self, id: Option<Id>) -> bool { self.layer(id).map_or(false, |l| l.locked) }
+    pub fn layer_locked(&self, id: Option<Id>) -> bool { self.layer(id).map_or(false, |l| l.locked || l.background) }
+    /// On a background layer (see `Layer::background`).
+    pub fn in_background(&self, s: &Shape) -> bool { self.layer(s.layer).map_or(false, |l| l.background) }
     /// Visible for display and hit-testing.
     pub fn shape_shown(&self, s: &Shape) -> bool { self.layer_visible(s.layer) }
     /// Can be selected / edited.

@@ -307,7 +307,7 @@ pub fn route(page: &Page, c: &Conn) -> Vec<Pos2> {
                 let obstacles: Vec<Rect> = page
                     .shapes
                     .iter()
-                    .filter(|s| page.shape_shown(s) && !library::is_container(&s.kind) && !library::is_textlike(&s.kind) && s.kind != "phase" && s.kind != "uml_lifeline")
+                    .filter(|s| page.shape_shown(s) && !page.in_background(s) && !library::is_container(&s.kind) && !library::is_textlike(&s.kind) && s.kind != "phase" && s.kind != "uml_lifeline")
                     .map(|s| {
                         let mut b = bbox(s);
                         if (library::is_icon(&s.kind) || s.kind == "image") && !s.text.is_empty() { b.max.y += 22.0; }

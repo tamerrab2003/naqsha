@@ -464,7 +464,7 @@ fn import_shape(doc: &mut Document, ctx: &PageCtx, vs: &VShape, parent: &Aff, ma
             s.style.fill.get_or_insert(Col::NONE);
             s.style.stroke = Some(Col::NONE);
         } else {
-            s.path = Some(paths.into_iter().map(|(pts, fill, line)| CPath { pts: pts.iter().map(|(x, y)| [x / ww, 1.0 - y / hh]).collect(), closed: fill || (pts.len() > 2 && { let (a, b) = (pts[0], pts[pts.len() - 1]); (a.0 - b.0).abs() < 1e-4 && (a.1 - b.1).abs() < 1e-4 }), fill, stroke: line }).collect());
+            s.path = Some(paths.into_iter().map(|(pts, fill, line)| CPath { pts: pts.iter().map(|(x, y)| [x / ww, 1.0 - y / hh]).collect(), closed: fill || (pts.len() > 2 && { let (a, b) = (pts[0], pts[pts.len() - 1]); (a.0 - b.0).abs() < 1e-4 && (a.1 - b.1).abs() < 1e-4 }), fill, stroke: line, ..Default::default() }).collect());
         }
         // explicit text block
         if let (Some(tw), Some(th)) = (r.num("TxtWidth"), r.num("TxtHeight")) {
@@ -598,7 +598,7 @@ pub fn import(bytes: Vec<u8>) -> Result<Imported, String> {
                     let c = read_cells(row);
                     let g = |n: &str| c.get(n).map(|x| x.0.clone()).unwrap_or_default();
                     let id = doc.new_id();
-                    page.layers.push(Layer { id, name: if g("Name").is_empty() { format!("Layer {}", layer_ids.len() + 1) } else { g("Name") }, visible: g("Visible") != "0", locked: g("Lock") == "1", print: g("Print") != "0" });
+                    page.layers.push(Layer { id, name: if g("Name").is_empty() { format!("Layer {}", layer_ids.len() + 1) } else { g("Name") }, visible: g("Visible") != "0", locked: g("Lock") == "1", print: g("Print") != "0", background: false });
                     layer_ids.push(id);
                 }
             }

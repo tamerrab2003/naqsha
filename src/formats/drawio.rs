@@ -209,7 +209,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
         if layer_cells.len() > 1 {
             for (i, lc) in layer_cells.iter().enumerate() {
                 let id = doc.new_id();
-                page.layers.push(Layer { id, name: if lc.value.is_empty() { format!("Layer {}", i + 1) } else { html_to_text(&lc.value) }, visible: lc.visible, locked: parse_style(&lc.style).1.get("locked").map_or(false, |v| v == "1"), print: true });
+                page.layers.push(Layer { id, name: if lc.value.is_empty() { format!("Layer {}", i + 1) } else { html_to_text(&lc.value) }, visible: lc.visible, locked: parse_style(&lc.style).1.get("locked").map_or(false, |v| v == "1"), print: true, background: false });
                 layer_map.insert(lc.id.clone(), id);
             }
         }

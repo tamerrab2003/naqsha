@@ -109,7 +109,7 @@ fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32) {
                 }
             }
         }
-        for t in render::text_shapes(cx, s) { eshape_svg(o, &t); }
+        if !render::label_drawn_last(s) { for t in render::text_shapes(cx, s) { eshape_svg(o, &t); } }
         o.push_str("</g>");
     }
     for (ci, route) in render::page_routes(page) {
@@ -128,6 +128,9 @@ fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32) {
             eshape_svg(o, sh);
         }
     }
+    for s in page.shapes.iter().filter(|s| page.shape_shown(s) && render::label_drawn_last(s)) {
+        for sh in render::masked_label(cx, s, page_bg) { eshape_svg(o, &sh); }
+    }
 }
 
 /// Build a standalone SVG of the page's content.
@@ -143,6 +146,11 @@ pub fn page_svg(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painte
     }
     for c in &page.conns { for p in geom::route(page, c) { bounds = geom::rect_union(bounds, Rect::from_center_size(p, vec2(16.0, 16.0))); } }
     let b = bounds.unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(page.width, page.height))).expand(padding);
+    page_svg_area(doc, page, pal, painter, b)
+}
+
+/// SVG of a fixed area of the page, e.g. the whole sheet for printing.
+pub fn page_svg_area(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painter, b: Rect) -> (String, f32, f32) {
     let (w, h) = (b.width().ceil(), b.height().ceil());
     let page_bg = page.bg.map(crate::theme::to_c32).unwrap_or(pal.page);
     let mut o = String::new();
@@ -156,6 +164,9 @@ pub fn page_svg(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painte
     o.push_str("</svg>");
     (o, w, h)
 }
+
+/// Parse an SVG made by this module (with the fonts used for export).
+pub fn svg_tree(svg: &str) -> Result<resvg::usvg::Tree, String> { tree(svg) }
 
 fn tree(svg: &str) -> Result<resvg::usvg::Tree, String> {
     let mut opt = resvg::usvg::Options::default();

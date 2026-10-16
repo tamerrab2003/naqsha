@@ -31,10 +31,13 @@ eframe = { version = "0.36", default-features = false, features = ["x11", "wayla
 winit = "0.30"
 # Naqsha Pro checks licences with the store (official builds only)
 ureq = { version = "3", optional = true, default-features = false, features = ["rustls"] }
+# Naqsha Pro: Excel schedules and multi-sheet PDF sets
+rust_xlsxwriter = { version = "0.99", optional = true }
+pdf-writer = { version = "0.12", optional = true }
 
 [features]
 # Naqsha Pro: needs the private pro/ module (git submodule); official builds turn this on
-pro = ["dep:ureq"]
+pro = ["dep:ureq", "dep:rust_xlsxwriter", "dep:pdf-writer"]
 
 # the browser version (nixpx.com/naqsha/app)
 [target.'cfg(target_arch = "wasm32")'.dependencies]

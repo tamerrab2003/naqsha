@@ -244,6 +244,10 @@ pub fn def(kind: &str) -> &'static Def {
 }
 
 pub fn is_icon(kind: &str) -> bool { kind.starts_with("n_") || kind.starts_with("c_") || kind.starts_with("e_") || kind.starts_with("d_") || kind == "uml_actor" }
+/// Engineering symbols (Naqsha Pro) carry their own geometry; the tag sits underneath.
+pub fn is_symbol(kind: &str) -> bool { kind.starts_with("x_") }
+/// Instrument bubbles (Naqsha Pro): the tag is written inside.
+pub fn is_instrument(kind: &str) -> bool { kind.starts_with("xi_") }
 pub fn is_container(kind: &str) -> bool { matches!(kind, "container" | "boundary" | "lane_h" | "lane_v" | "p_stage") || kind.starts_with("g_") }
 /// Architecture cards (decision records, risks, requirements…): text with a glyph on the left.
 pub fn is_card(kind: &str) -> bool { matches!(kind, "a_adr" | "a_risk" | "a_req" | "a_principle" | "a_assumption") }
@@ -319,8 +323,11 @@ pub struct TextBox {
 /// Text box in local coords.
 pub fn text_box(kind: &str, w: f32, h: f32) -> TextBox {
     let r = |x: f32, y: f32, ww: f32, hh: f32| TextBox { rect: Rect::from_min_size(pos2(x, y), egui::vec2(ww.max(4.0), hh.max(4.0))), rotated: false };
-    if is_icon(kind) || kind == "image" {
+    if is_icon(kind) || kind == "image" || is_symbol(kind) {
         return r(-40.0, h + 4.0, w + 80.0, 34.0);
+    }
+    if is_instrument(kind) {
+        return r(w * 0.1, h * 0.18, w * 0.8, h * 0.64);
     }
     match kind {
         "triangle" => r(w * 0.2, h * 0.4, w * 0.6, h * 0.55),
@@ -871,12 +878,12 @@ fn icons_ce(b: &mut PB, k: &str) {
 pub fn shape_parts(s: &crate::model::Shape) -> Vec<Part> {
     if let Some(paths) = &s.path {
         let mut out = vec![];
-        let any_filled_or_stroked = paths.iter().any(|p| p.fill || p.stroke);
+        let any_filled_or_stroked = paths.iter().any(|p| p.fill || p.stroke || p.solid);
         for p in paths {
             if p.pts.len() < 2 { continue; }
             let pts: Vec<Pos2> = p.pts.iter().map(|q| pos2(q[0] * s.w, q[1] * s.h)).collect();
-            let kind = match (p.fill && p.closed, p.stroke) { (true, true) => PK::Main, (true, false) => PK::Fill, (false, true) => PK::Line, (false, false) => PK::Hit };
-            out.push(Part { pts, closed: p.closed, kind, dashed: false });
+            let kind = if p.solid { PK::Glyph } else { match (p.fill && p.closed, p.stroke) { (true, true) => PK::Main, (true, false) => PK::Fill, (false, true) => PK::Line, (false, false) => PK::Hit } };
+            out.push(Part { pts, closed: p.closed || p.solid, kind, dashed: p.dashed });
         }
         if !any_filled_or_stroked || out.is_empty() { out.push(Part { pts: vec![pos2(0.0, 0.0), pos2(s.w, 0.0), pos2(s.w, s.h), pos2(0.0, s.h)], closed: true, kind: PK::Hit, dashed: false }); }
         return out;
