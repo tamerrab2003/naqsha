@@ -59,6 +59,8 @@ pub struct ProLicense {
     pub checked: u64,
     /// Unix seconds when the free trial started (0: not started).
     pub trial_start: u64,
+    /// The store's IDs for this key ("store … · product … · variant …"), for support.
+    pub store_ids: String,
 }
 
 impl Default for Settings {
