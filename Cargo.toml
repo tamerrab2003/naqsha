@@ -27,7 +27,7 @@ yaml-rust2 = "0.10"
 
 # desktop (macOS, Windows, Linux)
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-eframe = { version = "0.36", default-features = false, features = ["x11", "wayland"] }
+eframe = { version = "0.36", default-features = false, features = ["x11", "wayland", "links"] }
 winit = "0.30"
 # Naqsha Pro checks licences with the store (official builds only)
 ureq = { version = "3", optional = true, default-features = false, features = ["rustls"] }
