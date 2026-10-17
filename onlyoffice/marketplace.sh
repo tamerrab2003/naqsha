@@ -8,6 +8,8 @@
 set -e
 FORK="${1:?usage: marketplace.sh <path to your onlyoffice.github.io clone>}"
 [ -f "$FORK/store/config.json" ] || { echo "$FORK doesn't look like an onlyoffice.github.io clone"; exit 1; }
+# the full path, before leaving the folder a relative one was given from
+FORK="$(cd "$FORK" && pwd)"
 cd "$(dirname "$0")"
 
 DEST="$FORK/sdkjs-plugins/content/naqsha"
