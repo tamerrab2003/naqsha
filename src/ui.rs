@@ -918,6 +918,8 @@ fn data_pane(app: &mut App, ui: &mut Ui, pal: &Pal) {
         let mut d = data.clone();
         let mut remove = None;
         for (i, (k, v)) in d.iter_mut().enumerate() {
+            // the app's own bookkeeping (naqsha:…) isn't for editing
+            if k.starts_with("naqsha:") { continue; }
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(k).desired_width(86.0).hint_text("Field"));
                 ui.add(egui::TextEdit::singleline(v).desired_width(110.0).hint_text("Value"));
