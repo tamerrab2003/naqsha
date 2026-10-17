@@ -832,7 +832,8 @@ impl App {
 
     /// Start a document from a template: here if this window is empty, otherwise in a new window.
     pub fn new_from(&mut self, doc: Document, name: &str) {
-        if self.is_pristine() { self.adopt(doc, name); } else { self.spawn.push(Spawn::Doc(doc, name.to_string())); }
+        // embedded in a document there is only this one diagram: a template replaces it
+        if self.is_pristine() || crate::embed::active() { self.adopt(doc, name); } else { self.spawn.push(Spawn::Doc(doc, name.to_string())); }
     }
 
     /// Take over a fresh (unsaved) document.

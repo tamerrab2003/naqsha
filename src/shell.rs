@@ -70,6 +70,8 @@ impl Shell {
                 // a browser tab holds one diagram: another one opens in a new tab
                 #[cfg(target_arch = "wasm32")]
                 Spawn::Doc(doc, name) => {
+                    // embedded in a document there is only this one diagram: the new one replaces it
+                    if crate::embed::active() { self.root.adopt(doc, &name); continue; }
                     if !crate::files::web::open_in_new_tab(&doc, &name) {
                         let w = self.window(self.focused.min(self.count() - 1));
                         if w.dirty { w.notify("Your browser blocked the new tab — allow pop-ups for this site, or Save (download) this diagram first"); }
@@ -175,6 +177,8 @@ impl eframe::App for Shell {
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, "settings", &self.set);
+        // an embedded editor's diagram lives in the host document: leave the app's own recovery alone
+        if crate::embed::active() { return; }
         let mut rec: Vec<model::Document> = vec![];
         for a in std::iter::once(&self.root).chain(self.others.iter().map(|(_, a)| a)) {
             if a.dirty && a.path.is_none() { rec.push(a.doc.clone()); }

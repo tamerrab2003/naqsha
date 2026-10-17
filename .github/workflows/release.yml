@@ -141,6 +141,7 @@ jobs:
         run: |
           V=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           mkdir -p out && mv dist/naqsha-web.zip out/naqsha-$V-web.zip
+          ./onlyoffice/package.sh && mv dist/naqsha-onlyoffice.plugin out/naqsha-$V-onlyoffice.plugin
       - uses: actions/upload-artifact@v4
         with: { name: web, path: out/* }
 

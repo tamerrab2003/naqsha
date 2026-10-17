@@ -46,7 +46,7 @@ pro = ["dep:ureq", "dep:rust_xlsxwriter", "dep:pdf-writer", "dep:calamine"]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Storage", "Location", "UrlSearchParams", "BeforeUnloadEvent", "Event", "Navigator", "Request", "RequestInit", "Headers", "Response"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Storage", "Location", "UrlSearchParams", "BeforeUnloadEvent", "Event", "Navigator", "Request", "RequestInit", "Headers", "Response", "MessageEvent", "EventTarget"] }
 log = "0.4"
 # Naqsha Pro in the browser: Excel files take their timestamp from JavaScript
 rust_xlsxwriter = { version = "0.99", optional = true, features = ["wasm"] }

@@ -1,0 +1,53 @@
+{
+	"name": "Naqsha",
+	"nameLocale": { "ar": "نقشة" },
+	"offered": "Nixpx LLC",
+	"guid": "asc.{DA395EC3-313E-48F3-BE8D-A4217BE92C27}",
+	"version": "1.0.0",
+	"variations": [
+		{
+			"description": "Draw flowcharts, P&IDs, single-line diagrams and architecture diagrams with Naqsha, and keep them editable inside your documents.",
+			"descriptionLocale": {
+				"ar": "ارسم المخططات الانسيابية ومخططات الأنابيب والأجهزة والمخططات الكهربائية أحادية الخط بنقشة، واحتفظ بها قابلة للتعديل داخل مستنداتك."
+			},
+			"url": "index.html",
+			"icons": [ "resources/light/icon.png", "resources/light/icon@2x.png" ],
+			"icons2": [
+				{
+					"style": "light",
+					"100%": { "normal": "resources/light/icon.png" },
+					"125%": { "normal": "resources/light/icon@1.25x.png" },
+					"150%": { "normal": "resources/light/icon@1.5x.png" },
+					"175%": { "normal": "resources/light/icon@1.75x.png" },
+					"200%": { "normal": "resources/light/icon@2x.png" }
+				},
+				{
+					"style": "dark",
+					"100%": { "normal": "resources/dark/icon.png" },
+					"125%": { "normal": "resources/dark/icon@1.25x.png" },
+					"150%": { "normal": "resources/dark/icon@1.5x.png" },
+					"175%": { "normal": "resources/dark/icon@1.75x.png" },
+					"200%": { "normal": "resources/dark/icon@2x.png" }
+				}
+			],
+			"isViewer": true,
+			"isDisplayedInViewer": false,
+			"EditorsSupport": [ "word", "cell", "slide" ],
+			"isVisual": true,
+			"isModal": true,
+			"isInsideMode": false,
+			"initDataType": "ole",
+			"isUpdateOleOnResize": false,
+			"buttons": [
+				{ "text": "Insert", "primary": true, "textLocale": { "ar": "إدراج" }, "isViewer": false },
+				{ "text": "Cancel", "primary": false, "textLocale": { "ar": "إلغاء" } }
+			],
+			"size": [ 1280, 860 ],
+			"store": {
+				"background": { "light": "#F6F5FB", "dark": "#0F0F1A" },
+				"icons": { "light": "resources/store/icons", "dark": "resources/store/icons" },
+				"categories": [ "specAbilities", "work" ]
+			}
+		}
+	]
+}

@@ -175,7 +175,7 @@ pub mod web {
 
     fn storage() -> Option<web_sys::Storage> { web_sys::window()?.local_storage().ok()? }
 
-    fn param(name: &str) -> Option<String> {
+    pub fn param(name: &str) -> Option<String> {
         let search = web_sys::window()?.location().search().ok()?;
         web_sys::UrlSearchParams::new_with_str(&search).ok()?.get(name)
     }

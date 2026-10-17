@@ -5,6 +5,7 @@
 
 mod app;
 mod canvas;
+mod embed;
 mod export;
 mod files;
 mod formats;
@@ -112,6 +113,8 @@ impl App {
         }
         self.handle_picked();
         pro::frame(self, &ctx);
+        #[cfg(target_arch = "wasm32")]
+        crate::embed::frame(self, ui);
         for id in std::mem::take(&mut self.menu_queue) { ui::menu_command(self, ui, &id); }
 
         ui::shortcuts(self, &ctx);
@@ -315,6 +318,7 @@ fn setup(cc: &eframe::CreationContext<'_>, start: Start) -> shell::Shell {
     } else { vec![] };
     // a browser tab is one window: it recovers one diagram
     if files::WEB { recovered.truncate(1); }
+    if embed::active() { recovered.clear(); }
     let first = if recovered.is_empty() { None } else { Some(recovered.remove(0)) };
     let recent = set.recent.clone();
     let mut app = App::new(set.clone(), first);
@@ -335,7 +339,9 @@ fn setup(cc: &eframe::CreationContext<'_>, start: Start) -> shell::Shell {
 fn main() {
     use wasm_bindgen::JsCast;
     eframe::WebLogger::init(log::LevelFilter::Error).ok();
-    files::web::install_unload_guard();
+    // embedded in another app, the host document keeps the diagram
+    if !embed::active() { files::web::install_unload_guard(); }
+    embed::install();
     let start = match files::web::start_document() { Some((d, name)) => Start::Doc(d, name), None => Start::Nothing };
     wasm_bindgen_futures::spawn_local(async move {
         let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
