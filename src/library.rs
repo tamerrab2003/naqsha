@@ -246,6 +246,8 @@ pub fn def(kind: &str) -> &'static Def {
 pub fn is_icon(kind: &str) -> bool { kind.starts_with("n_") || kind.starts_with("c_") || kind.starts_with("e_") || kind.starts_with("d_") || kind == "uml_actor" }
 /// Engineering symbols (Naqsha Pro) carry their own geometry; the tag sits underneath.
 pub fn is_symbol(kind: &str) -> bool { kind.starts_with("x_") }
+/// Electrical symbols (Naqsha Pro): drawn vertically on single-line diagrams, so the tag sits to the right.
+pub fn is_electrical(kind: &str) -> bool { kind.starts_with("x_e_") }
 /// Instrument bubbles (Naqsha Pro): the tag is written inside.
 pub fn is_instrument(kind: &str) -> bool { kind.starts_with("xi_") }
 pub fn is_container(kind: &str) -> bool { matches!(kind, "container" | "boundary" | "lane_h" | "lane_v" | "p_stage") || kind.starts_with("g_") }
@@ -323,6 +325,13 @@ pub struct TextBox {
 /// Text box in local coords.
 pub fn text_box(kind: &str, w: f32, h: f32) -> TextBox {
     let r = |x: f32, y: f32, ww: f32, hh: f32| TextBox { rect: Rect::from_min_size(pos2(x, y), egui::vec2(ww.max(4.0), hh.max(4.0))), rotated: false };
+    if kind == "x_e_panel" {
+        // a board or panel is a box: its tag goes inside, under the header strip
+        return r(4.0, h * 0.24, w - 8.0, h * 0.74);
+    }
+    if is_electrical(kind) {
+        return r(w + 8.0, h / 2.0 - 17.0, 150.0, 34.0);
+    }
     if is_icon(kind) || kind == "image" || is_symbol(kind) {
         return r(-40.0, h + 4.0, w + 80.0, 34.0);
     }

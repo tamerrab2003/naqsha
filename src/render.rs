@@ -259,7 +259,7 @@ pub fn draw_shape(cx: &Ctx, out: &mut Vec<EShape>, s: &Shape, with_text: bool) {
 
 /// Engineering symbols keep their tag text out of the shape pass: it is drawn after the
 /// connectors, on a small backing in the page colour, so pipes never run through a tag.
-pub fn label_drawn_last(s: &Shape) -> bool { library::is_symbol(&s.kind) }
+pub fn label_drawn_last(s: &Shape) -> bool { library::is_symbol(&s.kind) && s.kind != "x_e_panel" }
 
 /// The tag of a symbol with its backing (see `label_drawn_last`).
 pub fn masked_label(cx: &Ctx, s: &Shape, bg: Color32) -> Vec<EShape> {
