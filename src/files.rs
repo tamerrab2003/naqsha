@@ -5,7 +5,8 @@ use std::path::PathBuf;
 
 /// What a picked file is for.
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Purpose { Open, Script, Pipeline, Image }
+#[cfg_attr(not(feature = "pro"), allow(dead_code))]
+pub enum Purpose { Open, Script, Pipeline, Image, /** a file for a Pro feature, by name */ Ext(&'static str) }
 
 /// A file the user chose, read into memory.
 pub struct Picked {
@@ -94,6 +95,10 @@ pub fn save_dialog(title: &str, name: &str, filters: Filters) -> Option<PathBuf>
     Some(if p.extension().is_none() { p.with_extension(filters.first().and_then(|f| f.1.first()).copied().unwrap_or("nqs")) } else { p })
 }
 
+/// In the browser a save is a download: the name is all there is to choose.
+#[cfg(target_arch = "wasm32")]
+pub fn save_dialog(_title: &str, name: &str, _filters: Filters) -> Option<PathBuf> { Some(PathBuf::from(name)) }
+
 /// Hand a file to the browser as a download.
 #[cfg(target_arch = "wasm32")]
 pub fn download(name: &str, bytes: &[u8], mime: &str) -> Result<(), String> {
@@ -125,6 +130,9 @@ pub fn mime_for(ext: &str) -> &'static str {
         "pdf" => "application/pdf",
         "vsdx" => "application/vnd.ms-visio.drawing.main+xml",
         "drawio" => "application/vnd.jgraph.mxfile",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "csv" => "text/csv",
+        "dxf" => "image/vnd.dxf",
         _ => "application/json",
     }
 }

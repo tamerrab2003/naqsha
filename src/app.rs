@@ -800,6 +800,7 @@ impl App {
                 Purpose::Script => self.insert_script(&f.name, f.path.as_deref(), f.bytes),
                 Purpose::Pipeline => self.insert_pipeline(&f.name, f.bytes),
                 Purpose::Image => self.insert_image_bytes(f.bytes),
+                Purpose::Ext(name) => crate::pro::picked(self, name, f),
             }
         }
     }

@@ -23,6 +23,9 @@ pub fn status_line(_app: &App) -> String { "Free edition".into() }
 /// Per-frame housekeeping (licence checks finishing in the background, …).
 pub fn frame(_app: &mut App, _ctx: &egui::Context) {}
 
+/// A file the user picked for a Pro feature (none without Pro).
+pub fn picked(_app: &mut App, _name: &str, _f: crate::files::Picked) {}
+
 /// The Pro tab of the ribbon.
 pub fn ribbon(_app: &mut App, ui: &mut Ui, pal: &Pal) {
     ui.vertical(|ui| {

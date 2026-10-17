@@ -25,16 +25,17 @@ roxmltree = "0.21"
 flate2 = "1"
 yaml-rust2 = "0.10"
 
+# Naqsha Pro (desktop and browser): Excel schedules and product lists, multi-sheet PDF sets
+rust_xlsxwriter = { version = "0.99", optional = true }
+pdf-writer = { version = "0.12", optional = true }
+calamine = { version = "0.36", optional = true, default-features = false }
+
 # desktop (macOS, Windows, Linux)
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 eframe = { version = "0.36", default-features = false, features = ["x11", "wayland", "links"] }
 winit = "0.30"
 # Naqsha Pro checks licences with the store (official builds only)
 ureq = { version = "3", optional = true, default-features = false, features = ["rustls"] }
-# Naqsha Pro: Excel schedules and multi-sheet PDF sets
-rust_xlsxwriter = { version = "0.99", optional = true }
-pdf-writer = { version = "0.12", optional = true }
-calamine = { version = "0.36", optional = true, default-features = false }
 
 [features]
 # Naqsha Pro: needs the private pro/ module (git submodule); official builds turn this on
@@ -45,8 +46,10 @@ pro = ["dep:ureq", "dep:rust_xlsxwriter", "dep:pdf-writer", "dep:calamine"]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Storage", "Location", "UrlSearchParams", "BeforeUnloadEvent", "Event", "Navigator"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Storage", "Location", "UrlSearchParams", "BeforeUnloadEvent", "Event", "Navigator", "Request", "RequestInit", "Headers", "Response"] }
 log = "0.4"
+# Naqsha Pro in the browser: Excel files take their timestamp from JavaScript
+rust_xlsxwriter = { version = "0.99", optional = true, features = ["wasm"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = "0.21"

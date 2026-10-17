@@ -9,7 +9,8 @@ cd "$(dirname "$0")"
 VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
 OUT=dist/web
 
-cargo build --profile web --target wasm32-unknown-unknown ${BUILD_STD:+-Zbuild-std=std,panic_abort}
+# FEATURES=pro builds Naqsha Pro in (needs the private pro/ submodule)
+cargo build --profile web --target wasm32-unknown-unknown ${FEATURES:+--features $FEATURES} ${BUILD_STD:+-Zbuild-std=std,panic_abort}
 rm -rf "$OUT" && mkdir -p "$OUT"
 wasm-bindgen --target web --no-typescript --out-dir "$OUT" --out-name naqsha \
   target/wasm32-unknown-unknown/web/naqsha.wasm
