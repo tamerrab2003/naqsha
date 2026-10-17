@@ -4,5 +4,5 @@ set -e
 cd "$(dirname "$0")"
 mkdir -p ../dist
 rm -f ../dist/naqsha-onlyoffice.plugin
-zip -qr -X ../dist/naqsha-onlyoffice.plugin config.json index.html scripts resources
+zip -qr -X ../dist/naqsha-onlyoffice.plugin config.json index.html scripts resources translations CHANGELOG.md LICENSE
 echo "Built dist/naqsha-onlyoffice.plugin"

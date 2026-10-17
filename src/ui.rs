@@ -1108,7 +1108,9 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
                 if te.changed() { app.gallery.cat = 0; }
             });
         });
-        ui.label(RichText::new(format!("Pick a starting point. It opens in a new {} if this one already has a diagram.", crate::files::WINDOW)).color(pal.muted).size(12.0));
+        let hint = if crate::embed::active() { "Pick a starting point. It replaces the diagram you're editing.".to_string() }
+            else { format!("Pick a starting point. It opens in a new {} if this one already has a diagram.", crate::files::WINDOW) };
+        ui.label(RichText::new(hint).color(pal.muted).size(12.0));
         ui.add_space(8.0);
         let entries = app.gallery.entries.as_ref().unwrap();
         let q = app.gallery.search.trim().to_lowercase();

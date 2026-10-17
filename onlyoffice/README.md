@@ -36,3 +36,13 @@ keeps the diagram JSON as the object's data, so nothing is stored anywhere else.
 
 The plugin GUID, `asc.{DA395EC3-313E-48F3-BE8D-A4217BE92C27}`, is written into every document
 that holds a Naqsha diagram: never change it.
+
+## Publishing to the ONLYOFFICE marketplace
+
+1. Fork <https://github.com/ONLYOFFICE/onlyoffice.github.io> on GitHub and clone the fork.
+2. `./onlyoffice/marketplace.sh <path to the clone>`: copies the plugin to
+   `sdkjs-plugins/content/naqsha` and adds it to `store/config.json`.
+3. Commit, push, and open a pull request to ONLYOFFICE/onlyoffice.github.io with the text in
+   `PULL_REQUEST.md`.
+
+For an update, raise `version` in `config.json`, add a `CHANGELOG.md` entry, and repeat.

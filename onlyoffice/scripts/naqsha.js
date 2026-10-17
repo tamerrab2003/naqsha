@@ -19,7 +19,20 @@
 
 	var frame, status, ready = false, inserting = false, stored = "", timer;
 
-	function show(html) { status.innerHTML = html; status.classList.remove("hidden"); }
+	var slow = false;
+	function tr(t) { return window.Asc.plugin.tr ? window.Asc.plugin.tr(t) : t; }
+	// the loading message, in the editor's language once the translations are in
+	function message() {
+		if (ready || !status) return;
+		status.textContent = "";
+		if (!slow) { status.textContent = tr("Loading Naqsha…"); return; }
+		var a = document.createElement("a");
+		a.href = "https://nixpx.com/naqsha"; a.target = "_blank"; a.textContent = "nixpx.com";
+		// one span: inside the flex box, loose text and the link would lose the space between them
+		var line = document.createElement("span");
+		line.append(tr("Naqsha is taking a while to load. It needs an internet connection to") + " ", a, ".");
+		status.append(line);
+	}
 	function close() { window.Asc.plugin.executeCommand("close", ""); }
 	function send(msg) { frame.contentWindow.postMessage(msg, EDITOR_ORIGIN); }
 
@@ -30,10 +43,8 @@
 		stored = typeof data === "string" ? data : "";
 		window.addEventListener("message", onMessage);
 		frame.src = EDITOR + (EDITOR.indexOf("?") < 0 ? "?" : "&") + "embed=onlyoffice";
-		timer = setTimeout(function () {
-			if (!ready) show("Naqsha is taking a while to load. It needs an internet connection to " +
-				'<a href="https://nixpx.com/naqsha" target="_blank">nixpx.com</a>.');
-		}, 20000);
+		message();
+		timer = setTimeout(function () { slow = true; message(); }, 20000);
 	};
 
 	function onMessage(e) {
@@ -94,6 +105,8 @@
 		evt.initMouseEvent("mouseup", true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
 		document.dispatchEvent(evt);
 	};
+
+	window.Asc.plugin.onTranslate = message;
 
 	window.Asc.plugin.onThemeChanged = function (theme) {
 		if (window.Asc.plugin.onThemeChangedBase) window.Asc.plugin.onThemeChangedBase(theme);
