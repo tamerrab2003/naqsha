@@ -34,10 +34,11 @@ ureq = { version = "3", optional = true, default-features = false, features = ["
 # Naqsha Pro: Excel schedules and multi-sheet PDF sets
 rust_xlsxwriter = { version = "0.99", optional = true }
 pdf-writer = { version = "0.12", optional = true }
+dxf = { version = "0.6", optional = true, default-features = false }
 
 [features]
 # Naqsha Pro: needs the private pro/ module (git submodule); official builds turn this on
-pro = ["dep:ureq", "dep:rust_xlsxwriter", "dep:pdf-writer"]
+pro = ["dep:ureq", "dep:rust_xlsxwriter", "dep:pdf-writer", "dep:dxf"]
 
 # the browser version (nixpx.com/naqsha/app)
 [target.'cfg(target_arch = "wasm32")'.dependencies]
