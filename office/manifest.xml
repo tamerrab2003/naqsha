@@ -15,7 +15,7 @@
   <Description DefaultValue="Draw flowcharts, P&amp;IDs, single-line diagrams and architecture diagrams with Naqsha, and keep them editable inside your documents, workbooks and presentations."/>
   <IconUrl DefaultValue="https://nixpx.com/naqsha/office/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://nixpx.com/naqsha/office/assets/icon-64.png"/>
-  <SupportUrl DefaultValue="https://nixpx.com/naqsha"/>
+  <SupportUrl DefaultValue="https://nixpx.com/naqsha/support"/>
   <AppDomains>
     <AppDomain>https://nixpx.com</AppDomain>
   </AppDomains>
@@ -159,7 +159,7 @@
       <bt:Urls>
         <bt:Url id="Taskpane.Url" DefaultValue="https://nixpx.com/naqsha/office/taskpane.html"/>
         <bt:Url id="Commands.Url" DefaultValue="https://nixpx.com/naqsha/office/commands.html"/>
-        <bt:Url id="Support.Url" DefaultValue="https://nixpx.com/naqsha"/>
+        <bt:Url id="Support.Url" DefaultValue="https://nixpx.com/naqsha/support"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Naqsha is ready"/>
