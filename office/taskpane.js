@@ -265,6 +265,7 @@
 			say("Couldn't insert the diagram: " + (e && e.message ? e.message : e), true);
 		} finally {
 			busy(false);
+			selected().then(hint, function () { hint(null); });
 		}
 	}
 
@@ -289,6 +290,26 @@
 		}
 	}
 
+	// the Edit button follows the selection: lit up when a Naqsha diagram is selected
+	var checking = null;
+	function hint(sel) {
+		var small = $("edit").querySelector("small");
+		$("edit").className = sel ? "primary" : "";
+		$("new").className = sel ? "" : "primary";
+		small.textContent = sel ? "Opens the selected diagram in Naqsha" : "Select a Naqsha diagram first";
+	}
+	function watchSelection() {
+		if (!Office.EventType.DocumentSelectionChanged) return;
+		Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, function () {
+			clearTimeout(checking);
+			checking = setTimeout(function () {
+				if (working) return;
+				selected().then(hint, function () { hint(null); });
+			}, 250);
+		});
+		selected().then(hint, function () { hint(null); });
+	}
+
 	Office.onReady(function (info) {
 		host = info.host === Office.HostType.Word ? "Word"
 			: info.host === Office.HostType.Excel ? "Excel"
@@ -298,5 +319,6 @@
 		$("edit").disabled = false;
 		$("new").onclick = function () { run(null); };
 		$("edit").onclick = edit;
+		watchSelection();
 	});
 })();
