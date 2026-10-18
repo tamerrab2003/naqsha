@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Naqsha</title>
+	<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+	<style>
+		:root { --bg: #FFFFFF; --fg: #1B1830; --muted: #6B6880; --line: #E4E2EE; --accent: #6C4DFF; --soft: #F3F0FF; }
+		@media (prefers-color-scheme: dark) { :root { --bg: #1F1F23; --fg: #ECEAF6; --muted: #A4A1B8; --line: #3A3846; --soft: #2A2540; } }
+		* { box-sizing: border-box; }
+		body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+		header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+		header img { width: 32px; height: 32px; }
+		header strong { font-size: 18px; }
+		p { margin: 0 0 12px; color: var(--muted); }
+		button { display: block; width: 100%; margin: 0 0 8px; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--line);
+			background: var(--bg); color: var(--fg); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+		button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+		button:disabled { opacity: .5; cursor: default; }
+		button small { display: block; font-weight: 400; opacity: .8; }
+		#status { min-height: 20px; margin: 10px 0; padding: 0; color: var(--muted); }
+		#status.error { color: #C4314B; }
+		#list { margin-top: 6px; }
+		#list button { font-weight: 400; }
+		footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+		footer a { color: var(--accent); }
+	</style>
+</head>
+<body>
+	<header><img src="assets/icon-64.png" alt=""><strong>Naqsha</strong></header>
+	<p>Flowcharts, P&amp;IDs, single-line diagrams and architecture diagrams that stay editable in your file.</p>
+
+	<button id="new" class="primary" disabled>New diagram<small>Draw or pick a template, then insert it</small></button>
+	<button id="edit" disabled>Edit selected diagram<small>Select a Naqsha diagram first</small></button>
+	<div id="list"></div>
+	<p id="status" role="status"></p>
+
+	<footer>
+		The diagram is kept inside this file, so anyone with the add-in can edit it.
+		Naqsha needs an internet connection. <a href="https://nixpx.com/naqsha" target="_blank">nixpx.com/naqsha</a>
+	</footer>
+	<script src="taskpane.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Naqsha</title>
+	<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+	<style>
+		:root { --bg: #FFFFFF; --fg: #1B1830; --muted: #6B6880; --line: #E4E2EE; --accent: #6C4DFF; }
+		@media (prefers-color-scheme: dark) { :root { --bg: #1F1F23; --fg: #ECEAF6; --muted: #A4A1B8; --line: #3A3846; } }
+		html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg);
+			font: 14px/1.4 "Segoe UI", system-ui, -apple-system, sans-serif; }
+		#bar { position: absolute; left: 0; right: 0; bottom: 0; height: 52px; display: flex; align-items: center; justify-content: flex-end;
+			gap: 8px; padding: 0 14px; border-top: 1px solid var(--line); box-sizing: border-box; }
+		#bar span { margin-right: auto; color: var(--muted); }
+		button { padding: 7px 18px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer; }
+		button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+		button:disabled { opacity: .5; cursor: default; }
+		#naqsha { position: absolute; left: 0; right: 0; top: 0; bottom: 52px; width: 100%; height: calc(100% - 52px); border: 0; }
+	</style>
+</head>
+<body>
+	<iframe id="naqsha" title="Naqsha diagram editor" allow="clipboard-read; clipboard-write"></iframe>
+	<div id="bar">
+		<span id="note">Loading Naqsha…</span>
+		<button id="cancel">Cancel</button>
+		<button id="insert" class="primary" disabled>Insert</button>
+	</div>
+	<script src="dialog.js"></script>
+</body>
+</html>
