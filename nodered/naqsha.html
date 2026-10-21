@@ -1,0 +1,120 @@
+<script type="text/javascript">
+(function () {
+    function summary(text) {
+        if (!text) return "No diagram yet";
+        try {
+            const d = JSON.parse(text);
+            const n = (d.pages || []).reduce((a, p) => a + (p.shapes || []).length, 0);
+            return (d.pages || []).length + " page(s), " + n + " shapes";
+        } catch (e) { return "Not a Naqsha diagram: " + e.message; }
+    }
+    RED.nodes.registerType("naqsha-view", {
+        category: "network",
+        color: "#C9BFFF",
+        defaults: {
+            name: { value: "" },
+            path: { value: "plant", required: true, validate: RED.validators.regex(/^[A-Za-z0-9_-]{1,64}$/) },
+            diagram: { value: "" },
+            file: { value: "" },
+            app: { value: "https://nixpx.com/naqsha/app/" }
+        },
+        inputs: 1,
+        outputs: 0,
+        icon: "naqsha.svg",
+        paletteLabel: "naqsha view",
+        label: function () { return this.name || "naqsha /" + this.path; },
+        oneditprepare: function () {
+            const info = $("#node-naqsha-summary");
+            info.text(summary($("#node-input-diagram").val()));
+            $("#node-naqsha-upload").on("change", function () {
+                const f = this.files && this.files[0];
+                if (!f) return;
+                const r = new FileReader();
+                r.onload = function () {
+                    $("#node-input-diagram").val(String(r.result));
+                    info.text(summary(String(r.result)));
+                };
+                r.readAsText(f);
+            });
+            $("#node-naqsha-remove").on("click", function (e) {
+                e.preventDefault();
+                $("#node-input-diagram").val("");
+                info.text(summary(""));
+            });
+            const root = (RED.settings.httpNodeRoot || "/").replace(/\/?$/, "/");
+            const update = () => $("#node-naqsha-url").text(root + "naqsha/" + ($("#node-input-path").val() || "…"));
+            $("#node-input-path").on("input", update);
+            update();
+        }
+    });
+})();
+</script>
+
+<script type="text/html" data-template-name="naqsha-view">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Pump station PS-01">
+    </div>
+    <div class="form-row">
+        <label for="node-input-path"><i class="fa fa-globe"></i> Path</label>
+        <input type="text" id="node-input-path" placeholder="plant">
+    </div>
+    <div class="form-row">
+        <label>&nbsp;</label>
+        <span>The view opens at <code id="node-naqsha-url"></code></span>
+    </div>
+    <div class="form-row">
+        <label><i class="fa fa-file-image-o"></i> Diagram</label>
+        <span id="node-naqsha-summary" style="margin-right:8px"></span>
+        <input type="hidden" id="node-input-diagram">
+    </div>
+    <div class="form-row">
+        <label>&nbsp;</label>
+        <input type="file" id="node-naqsha-upload" accept=".nqs,application/json" style="width:auto">
+        <a href="#" id="node-naqsha-remove" class="red-ui-button red-ui-button-small">Remove</a>
+    </div>
+    <div class="form-row">
+        <label for="node-input-file"><i class="fa fa-folder-open"></i> or file</label>
+        <input type="text" id="node-input-file" placeholder="diagrams/ps01.nqs (on the Node-RED server)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-app"><i class="fa fa-external-link"></i> Naqsha app</label>
+        <input type="text" id="node-input-app" placeholder="https://nixpx.com/naqsha/app/">
+    </div>
+</script>
+
+<script type="text/html" data-help-name="naqsha-view">
+    <p>Shows a Naqsha drawing as a live view and puts values from your flows on it: levels and flows
+    on instruments, pumps running or stopped, alarms in red. Monitoring only: nothing on the view
+    can change your flows or your plant.</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd>The tag of the item on the drawing: a shape's tag (the first line of its text, such as
+        <code>P-101</code>), an instrument such as <code>LIT-101</code>, or the <i>Live tag</i>
+        field in an item's shape data. Connectors answer to their <i>Live tag</i> field or their label.</dd>
+        <dt>payload <span class="property-type">number | string | boolean | object</span></dt>
+        <dd>
+            <ul>
+                <li>a number or text: shown in a badge on the item (with the item's <i>Unit</i> shape data);</li>
+                <li><code>true</code>, <code>"run"</code>, <code>"on"</code>: the item's animation plays (a pipe flows) and it gets a green dot;
+                <code>false</code>, <code>"stop"</code>, <code>"off"</code>: it stands still, grey dot;</li>
+                <li><code>"alarm"</code>, <code>"fault"</code>, <code>"trip"</code>: the item glows red;</li>
+                <li><code>{value, unit, state}</code> for all of these at once.</li>
+            </ul>
+            Without a topic, a payload of <code>{"LIT-101": 64, "P-101": true}</code> sets several tags at once.
+        </dd>
+        <dt class="optional">diagram <span class="property-type">string | object</span></dt>
+        <dd>Replaces the drawing (a Naqsha <code>.nqs</code> file's contents).</dd>
+        <dt class="optional">reset <span class="property-type">boolean</span></dt>
+        <dd>Clears every value first.</dd>
+    </dl>
+
+    <h3>Details</h3>
+    <p>Draw the plant in Naqsha (<a href="https://nixpx.com/naqsha" target="_blank">nixpx.com/naqsha</a>, free in the browser),
+    save it as <code>.nqs</code> and upload it here. Animations set in Naqsha (flow on a pipe, a spinning fan) only play
+    while their item is running.</p>
+    <p>The view is served by Node-RED at <code>/naqsha/&lt;path&gt;</code>, behind your <code>httpNodeAuth</code> if you set one.
+    The page loads the Naqsha web app from <i>Naqsha app</i>; the values go straight from Node-RED to the viewer's browser.</p>
+</script>

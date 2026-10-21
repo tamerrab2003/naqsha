@@ -171,6 +171,7 @@ pub fn install_menu(recent: &[String]) -> Option<Box<dyn std::any::Any>> {
         &item("insert:text", "Text Box", None),
         &item("insert:image", "Picture…", None),
         &item("insert:pipeline", "Pipeline from File…", None),
+        &item("insert:flows", "Node-RED Flows from File…", None),
         &item("insert:script", "Script File…", None),
         &sep(),
         &item("layer:new", "New Layer", None),

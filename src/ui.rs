@@ -362,6 +362,7 @@ fn ribbon_insert(app: &mut App, ui: &mut Ui, pal: &Pal) {
     });
     group(ui, pal, "CI/CD", |ui| {
         if big(ui, pal, "pipeline", "Pipeline", "Draw a CI/CD pipeline from its definition file: GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines or a Jenkinsfile").clicked() { app.insert_pipeline_file(); }
+        if big(ui, pal, "flows", "Node-RED", "Draw Node-RED flows from flows.json or an export (you can also paste a copied flow)").clicked() { app.insert_flows_file(); }
         if big(ui, pal, "script", "Script File", "Insert a script or config file as a code block").clicked() { app.insert_script_file(); }
     });
     if !crate::files::WEB { group(ui, pal, "Stencils", |ui| {
@@ -1175,7 +1176,7 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
                 for (i, c) in cats.iter().enumerate() {
                     let n = if i == 0 { entries.len() } else { entries.iter().filter(|e| e.cat == *c).count() };
                     // categories filled by Naqsha Pro stay hidden in a build without it
-                    if n == 0 && (*c == "Water & Process" || *c == "Electrical" || *c == "Manufacturing") { continue; }
+                    if n == 0 && (*c == "Water & Process" || *c == "Electrical" || *c == "Manufacturing" || *c == "IoT & Automation") { continue; }
                     let on = app.gallery.cat == i;
                     let (rect, resp) = ui.allocate_exact_size(vec2(180.0, 28.0), Sense::click());
                     if on { ui.painter().rect_filled(rect, 6.0, with_alpha(pal.accent, 0.14)); } else if resp.hovered() { ui.painter().rect_filled(rect, 6.0, pal.hover); }
@@ -1576,6 +1577,7 @@ pub fn menu_command(app: &mut App, ui: &mut Ui, id: &str) {
         "page:del" => app.del_page(),
         "insert:image" => app.insert_image(),
         "insert:pipeline" => app.insert_pipeline_file(),
+        "insert:flows" => app.insert_flows_file(),
         "insert:script" => app.insert_script_file(),
         "stencil:add" => app.add_stencil_folder(),
         "layer:new" => {

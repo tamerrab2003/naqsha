@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ · Naqsha live view</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #F4F3FA; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #state { position: absolute; left: 12px; bottom: 12px; padding: 5px 10px 5px 24px; border-radius: 999px; background: rgba(255,255,255,.92);
+    border: 1px solid #E4E2EE; color: #4B4865; box-shadow: 0 2px 8px rgba(0,0,0,.08); pointer-events: none; }
+  #state::before { content: ""; position: absolute; left: 10px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: #94A3B8; }
+  #state.on::before { background: #10B981; }
+  #state.off::before { background: #DC2626; }
+</style>
+</head>
+<body>
+<iframe id="nq" title="__TITLE__" src="__SRC__"></iframe>
+<div id="state">Connecting…</div>
+<script>
+(function () {
+  "use strict";
+  var ORIGIN = "__ORIGIN__";
+  var base = location.pathname.replace(/\/+$/, "");
+  var frame = document.getElementById("nq");
+  var state = document.getElementById("state");
+  var ready = false, doc = null, values = {};
+
+  function post(msg) { if (ready) frame.contentWindow.postMessage(msg, ORIGIN); }
+  function sendAll() {
+    if (!ready || doc === null) return;
+    post({ naqsha: "load", doc: doc });
+    post({ naqsha: "values", values: values });
+  }
+  window.addEventListener("message", function (e) {
+    if (e.source !== frame.contentWindow || e.origin !== ORIGIN) return;
+    if (e.data && e.data.naqsha === "ready") { ready = true; sendAll(); }
+  });
+  function loadDoc() {
+    fetch(base + "/doc", { cache: "no-store" }).then(function (r) { return r.status === 200 ? r.text() : null; }).then(function (t) {
+      if (t === null) { state.textContent = "No diagram yet — add one in the node"; return; }
+      doc = t; sendAll();
+    }).catch(function () { state.textContent = "Couldn't load the diagram"; });
+  }
+  loadDoc();
+
+  var es = new EventSource(base + "/events");
+  es.onopen = function () { state.className = "on"; state.textContent = "Live"; };
+  es.onerror = function () { state.className = "off"; state.textContent = "Reconnecting…"; };
+  es.addEventListener("values", function (e) {
+    var v = JSON.parse(e.data);
+    for (var k in v) values[k] = v[k];
+    post({ naqsha: "values", values: v });
+  });
+  es.addEventListener("clear", function () { values = {}; post({ naqsha: "clear" }); });
+  es.addEventListener("load", function (e) { doc = e.data; sendAll(); });
+})();
+</script>
+</body>
+</html>

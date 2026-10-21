@@ -159,6 +159,10 @@ pub struct App {
     pub ctx_menu: Option<Pos2>,
     /// Show the template gallery once the launch has settled (no file was opened).
     pub offer_gallery: bool,
+    /// A live view: the diagram only, to look at (pan, zoom, open sub-pages), no editing.
+    pub viewer: bool,
+    /// Live values by tag, from a host such as the Node-RED add-on.
+    pub live: HashMap<String, crate::live::Live>,
     /// Page the context menu was opened on (it closes when the page changes).
     pub ctx_menu_page: usize,
     /// When the context menu opened (presses before that don't dismiss it).
@@ -205,7 +209,7 @@ impl App {
             doc: Document::default(), pi: 0, sel: vec![], tool: Tool::Pointer, zoom: 1.0, pan: vec2(40.0, 40.0), fit_pending: true, set, path: None, dirty: false,
             undo: vec![], redo: vec![], coalesce: None, drag: Drag::None, hover: None, guides: vec![], glue: None, edit: None, painter_style: None,
             tab: Tab::Home, search: String::new(), images: HashMap::new(), toast: None, modal: None, open_path_pending: None, allow_close: false, renaming: None,
-            last_title: String::new(), recovery, pal: theme::LIGHT, ctx_menu: None, offer_gallery: false, ctx_menu_page: 0, ctx_menu_t: 0.0, stencil_drag: None, canvas_rect: Rect::NOTHING, mouse_world: None, paste_count: 0.0, now: 0.0, imported_name: None, user_lib: vec![], user_lib_loaded: false, thumbs: HashMap::new(), nav: vec![], focus_shape: None, spawn: vec![], picked: vec![], want_close: false, focused: false, menu_queue: vec![], gallery: Gallery::default(),
+            last_title: String::new(), recovery, pal: theme::LIGHT, ctx_menu: None, offer_gallery: false, ctx_menu_page: 0, ctx_menu_t: 0.0, stencil_drag: None, canvas_rect: Rect::NOTHING, mouse_world: None, paste_count: 0.0, now: 0.0, imported_name: None, user_lib: vec![], user_lib_loaded: false, thumbs: HashMap::new(), nav: vec![], focus_shape: None, spawn: vec![], picked: vec![], want_close: false, focused: false, menu_queue: vec![], gallery: Gallery::default(), viewer: false, live: HashMap::new(),
         }
     }
 
@@ -444,6 +448,11 @@ impl App {
             }
         }
         if text.trim().is_empty() { return; }
+        // a flow copied from Node-RED (Export › Copy to clipboard) arrives as its own pages
+        if crate::formats::nodered::looks_like(text) {
+            self.insert_flows(text);
+            return;
+        }
         // Plain text becomes a text shape (like Visio).
         let c = self.mouse_world.filter(|p| self.canvas_rect.contains(pos2(p.x, p.y)) || true).unwrap_or_else(|| self.view_center_world());
         let c = if self.canvas_rect.is_finite() { self.view_center_world() } else { c };
@@ -804,6 +813,7 @@ impl App {
                 },
                 Purpose::Script => self.insert_script(&f.name, f.path.as_deref(), f.bytes),
                 Purpose::Pipeline => self.insert_pipeline(&f.name, f.bytes),
+                Purpose::Flows => match f.bytes { Ok(b) => self.insert_flows(&String::from_utf8_lossy(&b)), Err(e) => self.notify(format!("Couldn't read the file: {e}")) },
                 Purpose::Image => self.insert_image_bytes(f.bytes),
                 Purpose::Ext(name) => crate::pro::picked(self, name, f),
             }
@@ -964,6 +974,22 @@ impl App {
         }
     }
 
+    /// Draw Node-RED flows (an export or flows.json) as new pages of this document.
+    pub fn insert_flows_file(&mut self) {
+        self.pick_file(crate::files::Purpose::Flows, "Insert Node-RED Flows (flows.json or an export)", &[("Node-RED flows", &["json"])]);
+    }
+    fn insert_flows(&mut self, text: &str) {
+        match crate::formats::nodered::import(text) {
+            Ok(imp) => {
+                self.checkpoint();
+                let at = self.doc.absorb(imp.doc);
+                self.go_page(at);
+                if let Some(n) = imp.notes.first() { self.notify(n.clone()); }
+            }
+            Err(e) => self.notify(format!("Couldn't read the flows: {e}")),
+        }
+    }
+
     pub fn insert_image(&mut self) {
         self.pick_file(crate::files::Purpose::Image, "Insert Picture", &[("Image", &["png", "jpg", "jpeg"])]);
     }
@@ -1036,6 +1062,7 @@ pub fn read_bytes(name: &str, bytes: Vec<u8>) -> Result<(Document, Vec<String>, 
         }
         _ => {
             let t = String::from_utf8_lossy(&bytes);
+            if crate::formats::nodered::looks_like(&t) { return crate::formats::nodered::import(&t).map(|i| (i.doc, i.notes, false)); }
             if t.trim_start().starts_with('<') {
                 if t.contains("<mxfile") || t.contains("<mxGraphModel") { return crate::formats::drawio::import(&t).map(|i| (i.doc, i.notes, false)); }
                 if t.contains("<svg") { return crate::formats::svgin::import(&bytes, &stem).map(|i| (i.doc, i.notes, false)); }

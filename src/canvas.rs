@@ -169,6 +169,8 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
     let full = ui.available_rect_before_wrap();
     let rs = if app.set.rulers { 20.0 } else { 0.0 };
     let crect = Rect::from_min_max(full.min + vec2(rs, rs), full.max);
+    // a live view keeps the whole page in sight when its frame is resized
+    if app.viewer && app.canvas_rect.size() != crect.size() { app.fit_pending = true; }
     app.canvas_rect = crect;
     if app.fit_pending { app.fit(); }
     if let Some(id) = app.focus_shape.take() {
@@ -193,6 +195,13 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
         }
     }
     let view = View { origin: crect.min, pan: app.pan, zoom: app.zoom };
+    if app.viewer {
+        viewer_input(app, ui, &resp, &view);
+        paint(app, ui, &painter, &view, crect);
+        live_badges(app, &painter, &view);
+        breadcrumb_bar(app, ui, crect);
+        return;
+    }
     let z = view.zoom;
     let ptr = resp.hover_pos().or_else(|| ui.input(|i| i.pointer.latest_pos()));
     app.mouse_world = ptr.filter(|p| crect.contains(*p)).map(|p| view.w(p));
@@ -312,6 +321,61 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
     if rs > 0.0 { paint_rulers(app, ui, full, crect, &view); }
     edit_overlay(app, ui, &view);
     breadcrumb_bar(app, ui, crect);
+}
+
+/// A live view: drag to pan, scroll or pinch to zoom, click a shape with a sub-page to open it.
+fn viewer_input(app: &mut App, ui: &mut Ui, resp: &egui::Response, view: &View) {
+    app.hover = None;
+    app.sel.clear();
+    if resp.drag_started() {
+        let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or_default();
+        app.drag = Drag::Pan { start: origin, pan0: app.pan };
+    }
+    if resp.dragged() {
+        if let (Drag::Pan { start, pan0 }, Some(p)) = (&app.drag, ui.input(|i| i.pointer.latest_pos())) { app.pan = *pan0 + (p - *start); }
+    }
+    if resp.drag_stopped() { app.drag = Drag::None; }
+    let over_link = resp.hover_pos().and_then(|p| match hit_test(app, view, p) { Hit::Shape(id) | Hit::Link(id) if app.link_target(id).is_some() => Some(id), _ => None });
+    if over_link.is_some() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
+    else if matches!(app.drag, Drag::Pan { .. }) { ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing); }
+    if resp.clicked() { if let Some(id) = over_link { app.open_link(id); } }
+}
+
+/// Live values: a badge with the value on each item, a green / grey dot for running / stopped,
+/// red for an alarm.
+fn live_badges(app: &App, painter: &egui::Painter, v: &View) {
+    use crate::live::{self, State};
+    if app.live.is_empty() { return; }
+    let page = app.page();
+    let pal = app.pal;
+    let red = Color32::from_rgb(220, 38, 38);
+    let badge = |at: Pos2, text: &str, alarm: bool| {
+        let g = painter.layout_no_wrap(text.to_string(), FontId::proportional(12.0), if alarm { Color32::WHITE } else { pal.text });
+        let r = Rect::from_center_size(at, g.size() + vec2(12.0, 6.0));
+        painter.rect_filled(r.translate(vec2(0.0, 1.0)), 6.0, Color32::from_black_alpha(30));
+        painter.rect_filled(r, 6.0, if alarm { red } else { pal.panel });
+        painter.rect_stroke(r, 6.0, Stroke::new(1.0, if alarm { red } else { pal.border }), StrokeKind::Inside);
+        painter.galley(r.min + vec2(6.0, 3.0), g, pal.text);
+    };
+    let dot = |at: Pos2, st: State| {
+        let c = match st { State::Run => Color32::from_rgb(16, 185, 129), State::Stop => Color32::from_rgb(148, 163, 184), State::Alarm => red, State::None => return };
+        painter.circle_filled(at, 5.5, Color32::WHITE);
+        painter.circle_filled(at, 4.5, c);
+    };
+    for s in page.shapes.iter().filter(|s| page.shape_shown(s)) {
+        let Some(l) = live::shape_key(s).and_then(|k| app.live.get(&k)) else { continue };
+        let b = geom::bbox(s);
+        dot(v.s(b.left_top()), l.state);
+        if let Some(t) = live::badge_text(l, &s.data) { badge(v.s(pos2(b.center().x, b.min.y)) - vec2(0.0, 14.0), &t, l.state == State::Alarm); }
+    }
+    for c in &page.conns {
+        let Some(l) = live::conn_key(c).and_then(|k| app.live.get(&k)) else { continue };
+        let route = geom::route(page, c);
+        if route.len() < 2 { continue; }
+        let mid = v.s(geom::poly_mid(&route));
+        // a connector's state shows in its own animation (flowing or still): only values get a badge
+        if let Some(t) = live::badge_text(l, &c.data) { badge(mid - vec2(0.0, 18.0), &t, l.state == State::Alarm); }
+    }
 }
 
 /// On a sub-diagram page: a Back button and the trail of parent pages, top-left of the canvas.
@@ -760,7 +824,8 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
     let pal = app.pal;
     let z = v.zoom;
     painter.rect_filled(crect, 0.0, pal.canvas);
-    let page = app.page();
+    let live_page = crate::live::apply(app.page(), &app.live);
+    let page: &Page = &live_page;
     let page_bg = page.bg.map(to_c32).unwrap_or(pal.page);
     let pr = v.rect(Rect::from_min_size(Pos2::ZERO, vec2(page.width, page.height)));
     for i in 1..=4 {

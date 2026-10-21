@@ -1,5 +1,6 @@
-//! Interchange formats: Visio (.vsdx), draw.io (.drawio/.xml), SVG.
+//! Interchange formats: Visio (.vsdx), draw.io (.drawio/.xml), SVG, Node-RED flows.
 pub mod drawio;
+pub mod nodered;
 pub mod pipeline;
 pub mod svgin;
 pub mod vsdx;

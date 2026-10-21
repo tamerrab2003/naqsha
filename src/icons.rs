@@ -11,6 +11,7 @@ const ICONS: &[(&str, &str)] = &[
     ("template", r##"<rect x="2" y="2" width="6" height="6" rx="1"/><rect x="10" y="2" width="6" height="6" rx="1"/><rect x="2" y="10" width="6" height="6" rx="1"/><path d="M13 10.5v5M10.5 13h5"/>"##),
     ("subpage", r##"<rect x="1.8" y="4.5" width="9.5" height="9" rx="1.2"/><path d="M3.8 2.5h9.7a1.2 1.2 0 0 1 1.2 1.2v7.3"/><path d="M5.5 11.5 8.7 8.3M6 8.2h2.8V11"/>"##),
     ("subsel", r##"<rect x="1.8" y="1.8" width="7" height="7" rx="1" stroke-dasharray="1.8 1.4"/><rect x="9.5" y="9.5" width="6.7" height="6.7" rx="1"/><path d="M6.5 6.5 11.2 11.2M8.6 11.4h2.8V8.6"/>"##),
+    ("flows", r##"<rect x="1.5" y="3" width="6" height="4" rx="1"/><rect x="10.5" y="3" width="6" height="4" rx="1"/><rect x="6" y="11" width="6" height="4" rx="1"/><path d="M7.5 5h3M4.5 7c0 4 1.5 6 1.5 6M13.5 7c0 3-1.5 6-1.5 6"/>"##),
     ("play", r##"<path d="M5.5 3.2v11.6L14.6 9z" fill="#fff" fill-opacity=".35"/>"##),
     ("pause", r##"<rect x="4.2" y="3.2" width="3.2" height="11.6" rx=".8"/><rect x="10.6" y="3.2" width="3.2" height="11.6" rx=".8"/>"##),
     ("motion", r##"<path d="M1.8 9h3M1.8 5.5h5M1.8 12.5h5"/><circle cx="12.2" cy="9" r="4"/><path d="M10.6 7.2 13.4 9l-2.8 1.8z" fill="#fff" fill-opacity=".5"/>"##),

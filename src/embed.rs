@@ -9,6 +9,10 @@
 //! - editor → host `{naqsha: "exported", doc, png, width, height}`: the whole diagram to store,
 //!   and a picture of the current page (a PNG data URL at 2× `width` × `height` CSS pixels) to
 //!   show in the document; or `{naqsha: "error", message}`.
+//! - host → editor `{naqsha: "values", values: {tag: value, …}}`: live values (see `live.rs`);
+//!   `{naqsha: "clear"}` removes them.
+//!
+//! With `&view=1` the editor is a live view: the drawing only, no editing (the Node-RED add-on).
 //!
 //! While embedded the editor doesn't recover unsaved work or warn before the page closes: the
 //! host document is where the diagram lives.
@@ -20,7 +24,7 @@ mod imp {
     use std::sync::{Mutex, OnceLock};
     use wasm_bindgen::JsCast;
 
-    enum Msg { Load(Option<String>), Export }
+    enum Msg { Load(Option<String>), Export, Values(serde_json::Map<String, serde_json::Value>), Clear }
 
     static ON: OnceLock<bool> = OnceLock::new();
     static INBOX: Mutex<Vec<Msg>> = Mutex::new(Vec::new());
@@ -43,6 +47,8 @@ mod imp {
             let msg = match v["naqsha"].as_str() {
                 Some("load") => Msg::Load(v["doc"].as_str().filter(|s| !s.trim().is_empty()).map(String::from)),
                 Some("export") => Msg::Export,
+                Some("values") => match v["values"].as_object() { Some(o) => Msg::Values(o.clone()), None => return },
+                Some("clear") => Msg::Clear,
                 _ => return,
             };
             if let Ok(mut h) = HOST.lock() { *h = Some(e.origin()); }
@@ -63,6 +69,7 @@ mod imp {
 
     pub fn frame(app: &mut App, ui: &egui::Ui) {
         if !active() { return; }
+        if !GREETED.load(Ordering::SeqCst) { app.viewer = crate::files::web::param("view").map_or(false, |v| v != "0"); }
         if !GREETED.swap(true, Ordering::SeqCst) {
             post(&serde_json::json!({ "naqsha": "ready", "version": env!("CARGO_PKG_VERSION") }));
         }
@@ -78,6 +85,10 @@ mod imp {
                     Err(e) => app.notify(format!("Couldn't read this diagram: {e}")),
                 },
                 Msg::Load(None) => {}
+                Msg::Values(o) => {
+                    for (k, v) in o { app.live.insert(k, crate::live::parse(&v)); }
+                }
+                Msg::Clear => app.live.clear(),
                 Msg::Export => export(app, ui),
             }
         }

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 /// What a picked file is for.
 #[derive(Clone, Copy, PartialEq, Debug)]
 #[cfg_attr(not(feature = "pro"), allow(dead_code))]
-pub enum Purpose { Open, Script, Pipeline, Image, /** a file for a Pro feature, by name */ Ext(&'static str) }
+pub enum Purpose { Open, Script, Pipeline, Flows, Image, /** a file for a Pro feature, by name */ Ext(&'static str) }
 
 /// A file the user chose, read into memory.
 pub struct Picked {
@@ -26,6 +26,7 @@ pub const OPEN_FILTERS: Filters = &[
     ("draw.io / diagrams.net", &["drawio", "xml"]),
     ("SVG", &["svg"]),
     ("CI/CD pipeline (GitHub, GitLab, Azure, Bitbucket, Jenkins)", &["yml", "yaml", "groovy", "jenkinsfile"]),
+    ("Node-RED flows", &["json"]),
 ];
 
 /// True in the browser build.

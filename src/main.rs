@@ -14,6 +14,7 @@ mod geom;
 mod icons;
 mod layout;
 mod library;
+mod live;
 #[cfg(target_os = "macos")]
 mod macos;
 mod platform;
@@ -118,6 +119,16 @@ impl App {
         crate::embed::frame(self, ui);
         for id in std::mem::take(&mut self.menu_queue) { ui::menu_command(self, ui, &id); }
 
+        if self.viewer {
+            // a live view: just the drawing
+            self.set.grid = false;
+            self.set.rulers = false;
+            self.offer_gallery = false;
+            self.modal = None;
+            egui::CentralPanel::no_frame().show(ui, |ui| canvas::canvas(self, ui));
+            ui::toast(self, &ctx);
+            return;
+        }
         ui::shortcuts(self, &ctx);
         ui::top(self, ui);
         ui::bottom(self, ui);

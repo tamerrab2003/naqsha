@@ -14,7 +14,7 @@ pub struct Entry {
     pub path: Option<PathBuf>,
 }
 
-pub const CATS: &[&str] = &["All", "Basic", "Flowchart", "CI/CD & DevOps", "Solution Architecture", "Cloud & Infrastructure", "Software Design", "Water & Process", "Electrical", "Manufacturing", "My Templates"];
+pub const CATS: &[&str] = &["All", "Basic", "Flowchart", "CI/CD & DevOps", "Solution Architecture", "Cloud & Infrastructure", "Software Design", "Water & Process", "Electrical", "Manufacturing", "IoT & Automation", "My Templates"];
 
 // ------------------------------------------------------------------ builder
 

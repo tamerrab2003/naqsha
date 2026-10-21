@@ -237,6 +237,7 @@ pub fn page_svg(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painte
 }
 
 /// SVG of a fixed area of the page, e.g. the whole sheet for printing.
+#[cfg_attr(not(feature = "pro"), allow(dead_code))]
 pub fn page_svg_area(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painter, b: Rect) -> (String, f32, f32) {
     page_svg_with(doc, page, pal, painter, b, Motion::Still)
 }
