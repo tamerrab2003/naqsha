@@ -2055,6 +2055,7 @@ dependencies = [
  "eframe",
  "egui",
  "flate2",
+ "gif 0.13.3",
  "image",
  "js-sys",
  "log",

@@ -214,6 +214,7 @@ fn ribbon_file(app: &mut App, ui: &mut Ui, pal: &Pal) {
         if big(ui, pal, "image", "PNG", "Export current page as PNG").clicked() { do_export(app, ui, "png"); }
         if big(ui, pal, "vector", "SVG", "Export current page as SVG").clicked() { do_export(app, ui, "svg"); }
         if big(ui, pal, "pdf", "PDF", "Export current page as PDF").clicked() { do_export(app, ui, "pdf"); }
+        if big(ui, pal, "motion", "GIF", "Export current page as an animated GIF (one loop of its animations)").clicked() { do_export(app, ui, "gif"); }
         if big(ui, pal, "export", "Visio", "Export all pages as a Visio drawing (.vsdx)").clicked() { do_export(app, ui, "vsdx"); }
         if big(ui, pal, "export", "draw.io", "Export all pages as a draw.io diagram").clicked() { do_export(app, ui, "drawio"); }
     });
@@ -514,6 +515,10 @@ fn ribbon_view(app: &mut App, ui: &mut Ui, pal: &Pal) {
             ui.checkbox(&mut app.set.show_right, "Format pane");
         });
     });
+    group(ui, pal, "Animation", |ui| {
+        let (icon, label, tip) = if app.set.animate { ("pause", "Pause", "Stop animations moving while you edit") } else { ("play", "Play", "Play animations (set them in the Format pane)") };
+        if big(ui, pal, icon, label, tip).clicked() { app.set.animate = !app.set.animate; }
+    });
     group(ui, pal, "Grid", |ui| {
         ui.vertical(|ui| {
             ui.label(RichText::new("Grid spacing").color(pal.muted));
@@ -532,7 +537,15 @@ fn ribbon_view(app: &mut App, ui: &mut Ui, pal: &Pal) {
 
 pub fn do_export(app: &mut App, ui: &Ui, ext: &str) {
     let painter = ui.painter().clone();
-    let (svg, _, _) = export::page_svg(Some(&app.doc), app.page(), &app.pal, &painter, 24.0);
+    let moves = crate::anim::page_moves(app.page());
+    if ext == "gif" && !moves {
+        app.notify("Nothing on this page moves yet: select a shape or connector and pick an animation in the Format pane");
+        return;
+    }
+    // an SVG file keeps the animations (as CSS); pictures and PDFs show the first frame
+    let (svg, _, _) = if ext == "svg" && moves {
+        export::page_svg_with(Some(&app.doc), app.page(), &app.pal, &painter, export::content_bounds(app.page(), 24.0), export::Motion::Css)
+    } else { export::page_svg(Some(&app.doc), app.page(), &app.pal, &painter, 24.0) };
     let name = if ext == "vsdx" || ext == "drawio" { format!("{}.{ext}", app.title()) } else { format!("{} - {}.{ext}", app.title(), app.page().name) };
     #[cfg(not(target_arch = "wasm32"))]
     let Some(path) = rfd::FileDialog::new().add_filter(ext.to_uppercase(), &[ext]).set_file_name(&name).save_file() else { return };
@@ -542,6 +555,7 @@ pub fn do_export(app: &mut App, ui: &Ui, ext: &str) {
         "vsdx" | "drawio" => crate::app::foreign_bytes(&app.doc, &path),
         "svg" => Ok(svg.into_bytes()),
         "png" => export::svg_to_png(&svg, 2.0),
+        "gif" => export::page_gif(Some(&app.doc), app.page(), &app.pal, &painter, 24.0, 1.0),
         _ => export::svg_to_pdf(&svg),
     };
     let res = bytes.and_then(|b| crate::files::deliver(&path, &b));
@@ -669,7 +683,7 @@ fn tile(app: &mut App, ui: &mut Ui, d: &library::Def) {
     let (mut s, v) = preview_shape(d.id, icon_rect);
     if library::is_textlike(d.id) { s.text = "Aa".into(); s.style.font_size = Some(if d.id == "heading" { 34.0 } else { 26.0 }); }
     let empty = HashMap::new();
-    let cx = Ctx { painter: ui.painter(), view: v, pal: &pal, images: &empty, doc: None, depth: 0 };
+    let cx = Ctx { painter: ui.painter(), view: v, pal: &pal, images: &empty, doc: None, depth: 0, time: Some(0.0) };
     let mut out = vec![];
     render::draw_shape(&cx, &mut out, &s, library::is_textlike(d.id));
     ui.painter().extend(out);
@@ -705,7 +719,7 @@ pub fn stencil_ghost(app: &App, ctx: &egui::Context) {
     let v = View { origin: p - vec2(s.w, s.h) * z / 2.0, pan: egui::Vec2::ZERO, zoom: z };
     let pal = app.pal;
     let empty = HashMap::new();
-    let cx = Ctx { painter: &painter, view: v, pal: &pal, images: &empty, doc: None, depth: 0 };
+    let cx = Ctx { painter: &painter, view: v, pal: &pal, images: &empty, doc: None, depth: 0, time: Some(0.0) };
     let mut out = vec![];
     render::draw_shape(&cx, &mut out, &s, true);
     painter.extend(out);
@@ -727,7 +741,7 @@ pub fn right(app: &mut App, ui: &mut Ui) {
             ui.spacing_mut().item_spacing.y = 6.0;
             if ns == 0 && nc == 0 { page_pane(app, ui, &pal); }
             if ns > 0 { shape_pane(app, ui, &pal); }
-            if nc > 0 { conn_pane(app, ui, &pal, ns == 0); }
+            if nc > 0 { conn_pane(app, ui, &pal, ns == 0); if ns == 0 { conn_anim_pane(app, ui, &pal); } }
             if ns + nc == 1 { data_pane(app, ui, &pal); }
             ui.add_space(30.0);
         });
@@ -829,6 +843,7 @@ fn shape_pane(app: &mut App, ui: &mut Ui, pal: &Pal) {
             if ui.add(egui::Slider::new(&mut o, 5.0..=100.0).suffix("%")).changed() { app.apply_style("opacity", |s| s.opacity = Some(o / 100.0)); }
         });
     });
+    section(ui, pal, "Animation", |ui| anim_controls(app, ui, pal, &st, &crate::anim::FOR_SHAPES, "ashape"));
     if single {
         section(ui, pal, "Size & Position", |ui| {
             let mut s2 = first.clone();
@@ -862,6 +877,36 @@ fn line_controls(app: &mut App, ui: &mut Ui, st: &Style) {
     row(ui, "Pattern", |ui| {
         if let Some(d) = seg(ui, &app.pal.clone(), st.dash, &[(Dash::Solid, "solid", "Solid"), (Dash::Dashed, "dashed", "Dashed"), (Dash::Dotted, "dotted", "Dotted")]) { app.apply_style("dash", |s| s.dash = d); }
     });
+}
+
+/// Animation kind, speed and colour for the selection.
+fn anim_controls(app: &mut App, ui: &mut Ui, pal: &Pal, st: &Style, kinds: &[Anim], id: &str) {
+    use crate::anim;
+    row(ui, "Effect", |ui| {
+        egui::ComboBox::from_id_salt(id).selected_text(anim::name(st.anim)).width(130.0).show_ui(ui, |ui| {
+            for &a in kinds {
+                if ui.selectable_label(a == st.anim, anim::name(a)).clicked() { app.apply_style("anim", |s| s.anim = a); }
+            }
+        });
+    });
+    if st.anim == Anim::None {
+        ui.label(RichText::new("Make flows, alarms and running machines move. View › Play starts and stops them; File › GIF exports one loop.").size(11.0).color(pal.faint));
+        return;
+    }
+    row(ui, "Speed", |ui| {
+        let cur = anim::speed(st);
+        for (v, name) in anim::SPEEDS {
+            if ui.selectable_label((cur - v).abs() < 1e-3, name).clicked() { app.apply_style("aspeed", |s| s.anim_speed = if v == 1.0 { None } else { Some(v) }); }
+        }
+    });
+    if matches!(st.anim, Anim::Flow | Anim::Dots | Anim::Glow) {
+        let line = render::stroke_of(st, pal.conn);
+        ui.label(RichText::new(if st.anim == Anim::Glow { "Glow colour" } else { "Colour of the moving part" }).size(11.0).color(pal.muted));
+        if let Some(v) = color_row(ui, pal, st.anim_color, line, false) { app.apply_style("acol", |s| s.anim_color = v); }
+    }
+    if !app.set.animate {
+        ui.label(RichText::new("Animations are paused (View › Play).").size(11.0).color(pal.faint));
+    }
 }
 
 fn arrow_combo(ui: &mut Ui, id: &str, cur: Arrow) -> Option<Arrow> {
@@ -909,6 +954,11 @@ fn conn_pane(app: &mut App, ui: &mut Ui, pal: &Pal, only_conns: bool) {
             ui.label(RichText::new(format!("Begin: {} · End: {}", if glued(&c.from) { "glued" } else { "free" }, if glued(&c.to) { "glued" } else { "free" })).size(11.0).color(pal.faint));
         }
     });
+}
+
+fn conn_anim_pane(app: &mut App, ui: &mut Ui, pal: &Pal) {
+    let st = app.sel_conns()[0].style.clone();
+    section(ui, pal, "Animation", |ui| anim_controls(app, ui, pal, &st, &crate::anim::FOR_CONNS, "aconn"));
 }
 
 fn data_pane(app: &mut App, ui: &mut Ui, pal: &Pal) {
@@ -1065,7 +1115,7 @@ fn page_thumb(painter: &egui::Painter, doc: &Document, page: &Page, rect: Rect, 
     let at = rect.center() - size / 2.0;
     let v = View { origin: at - b.min.to_vec2() * k, pan: egui::Vec2::ZERO, zoom: k };
     let empty = HashMap::new();
-    let cx = Ctx { painter, view: v, pal, images: &empty, doc: Some(doc), depth: 1 };
+    let cx = Ctx { painter, view: v, pal, images: &empty, doc: Some(doc), depth: 1, time: Some(0.0) };
     let mut out = vec![];
     for s in page.shapes.iter().filter(|s| page.shape_shown(s)) {
         let legible = s.style.font_size.unwrap_or(13.0) * k >= 4.5;

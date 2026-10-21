@@ -36,6 +36,8 @@ pub struct Settings {
     pub layout: String,
     /// Naqsha Pro licence and trial (used by official builds; see src/pro_stub.rs).
     pub pro: ProLicense,
+    /// Play animations in the editor (off: they stand still at their first frame).
+    pub animate: bool,
 }
 
 /// A Naqsha Pro licence as last confirmed by the store, and the trial. Plain data: the logic that
@@ -65,7 +67,7 @@ pub struct ProLicense {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { mode: Mode::System, grid: true, rulers: true, snap: true, guides: true, show_left: true, show_right: true, grid_size: 20.0, recent: vec![], routing: Routing::Orthogonal, stencil_dirs: vec![], layout: "tb".into(), pro: ProLicense::default() }
+        Settings { mode: Mode::System, grid: true, rulers: true, snap: true, guides: true, show_left: true, show_right: true, grid_size: 20.0, recent: vec![], routing: Routing::Orthogonal, stencil_dirs: vec![], layout: "tb".into(), pro: ProLicense::default(), animate: true }
     }
 }
 
@@ -604,6 +606,9 @@ impl App {
     }
 
     // ------------------------------------------------------------- style
+    /// The animation clock for the editor: running time while playing, 0 when paused.
+    pub fn anim_time(&self, ctx: &egui::Context) -> f64 { if self.set.animate { ctx.input(|i| i.time) } else { 0.0 } }
+
     pub fn apply_style(&mut self, key: &str, f: impl Fn(&mut Style)) {
         if self.sel.is_empty() { return; }
         self.checkpoint_key(key);

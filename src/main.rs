@@ -3,6 +3,7 @@
 // the browser build leaves out the desktop-only parts (command line, menus, files on disk)
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports, unused_variables, unused_mut))]
 
+mod anim;
 mod app;
 mod canvas;
 mod embed;
@@ -167,7 +168,7 @@ fn icon() -> egui::IconData {
     }
 }
 
-/// `naqsha --export diagram.nqs out.png|svg|pdf [page-number] [--dark]`
+/// `naqsha --export diagram.nqs out.png|svg|pdf|gif [page-number] [--dark]`
 fn cli_export(args: &[String]) -> Result<(), String> {
     let input = args.get(2).ok_or("missing input file")?;
     let output = args.get(3).ok_or("missing output file")?;
@@ -179,13 +180,21 @@ fn cli_export(args: &[String]) -> Result<(), String> {
     let ctx = egui::Context::default();
     ctx.set_fonts(theme::fonts());
     let pal = if dark { theme::DARK } else { theme::LIGHT };
+    let ext = output.rsplit('.').next().unwrap_or("");
+    let moves = anim::page_moves(page);
     let mut svg = String::new();
-    for _ in 0..2 {
+    let mut gif = Ok(vec![]);
+    for pass in 0..2 {
         // first pass loads fonts, second lays out text
-        let _ = ctx.run_ui(Default::default(), |ui| { svg = export::page_svg(Some(&doc), page, &pal, ui.painter(), 24.0).0; });
+        let _ = ctx.run_ui(Default::default(), |ui| {
+            svg = if ext == "svg" && moves { export::page_svg_with(Some(&doc), page, &pal, ui.painter(), export::content_bounds(page, 24.0), export::Motion::Css).0 }
+                else { export::page_svg(Some(&doc), page, &pal, ui.painter(), 24.0).0 };
+            if ext == "gif" && pass == 1 { gif = export::page_gif(Some(&doc), page, &pal, ui.painter(), 24.0, 1.0); }
+        });
     }
-    let bytes = match output.rsplit('.').next().unwrap_or("") {
+    let bytes = match ext {
         "svg" => svg.into_bytes(),
+        "gif" => gif?,
         "png" => export::svg_to_png(&svg, 2.0)?,
         "pdf" => export::svg_to_pdf(&svg)?,
         "vsdx" | "drawio" | "nqs" | "schx" => return app::write_foreign(&doc, std::path::Path::new(output)),

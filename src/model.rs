@@ -27,6 +27,11 @@ pub enum VAlign { Top, Middle, Bottom }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Routing { #[default] Orthogonal, Straight, Curved }
 
+/// Movement on a shape or connector. Shapes: glow, pulse, blink, spin, shake. Connectors: flow
+/// (dashes running toward the arrow end), dots (beads running along the line), glow, blink.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum Anim { #[default] None, Flow, Dots, Glow, Pulse, Blink, Spin, Shake }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Arrow { #[default] None, Filled, Open, Diamond, Circle }
 
@@ -48,7 +53,16 @@ pub struct Style {
     pub opacity: Option<f32>,
     /// Code font (monospace), e.g. for script blocks.
     pub mono: bool,
+    /// Animation, its speed (1 = normal, 0.5 slow, 2 fast) and colour (None: the line colour).
+    #[serde(skip_serializing_if = "is_still")]
+    pub anim: Anim,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anim_speed: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anim_color: Option<Col>,
 }
+
+fn is_still(a: &Anim) -> bool { *a == Anim::None }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]

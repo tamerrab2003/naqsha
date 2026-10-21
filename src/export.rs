@@ -1,5 +1,6 @@
 //! SVG / PNG / PDF export.
 use crate::geom::{self, l2w};
+use crate::anim;
 use crate::library::{self, PK};
 use crate::model::*;
 use crate::render::{self, Ctx, View};
@@ -63,15 +64,57 @@ fn eshape_svg(out: &mut String, sh: &EShape) {
     }
 }
 
-/// Shapes and connectors of a page as SVG elements (world coordinates).
-fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32) {
+/// CSS for one animated shape's group: (class, inline style, keyframes rule).
+fn shape_css(s: &Shape, i: usize, pal: &crate::theme::Pal) -> (String, String) {
+    let dur = anim::period(&s.style);
+    let name = format!("nq{i}");
+    let base = format!("animation:{name} {dur:.2}s {} infinite;transform-box:fill-box;transform-origin:center", if s.style.anim == Anim::Spin { "linear" } else { "ease-in-out" });
+    let kf = match s.style.anim {
+        Anim::Pulse => "0%,100%{transform:scale(1)}50%{transform:scale(1.08)}".to_string(),
+        Anim::Spin => "from{transform:rotate(0deg)}to{transform:rotate(360deg)}".to_string(),
+        Anim::Shake => "0%,100%{transform:translateX(0)}".to_string() + &(1..12).map(|k| format!("{:.2}%{{transform:translateX({}px)}}", k as f32 * 100.0 / 12.0, if k % 2 == 1 { 3 } else { -3 })).collect::<String>(),
+        Anim::Blink => "0%,49.9%{opacity:1}50%,100%{opacity:.18}".to_string(),
+        Anim::Glow => {
+            let c = col(render::glow_color(&s.style, render::stroke_of(&s.style, pal.shape_stroke)));
+            format!("0%,100%{{filter:drop-shadow(0 0 2px {c})}}50%{{filter:drop-shadow(0 0 9px {c}) drop-shadow(0 0 3px {c})}}")
+        }
+        _ => return (String::new(), String::new()),
+    };
+    (base, format!("@keyframes {name}{{{kf}}}"))
+}
+
+/// Shapes and connectors of a page as SVG elements (world coordinates). With `css`, animated
+/// items get CSS animations (their keyframes are added to `css`); otherwise each is drawn at
+/// `cx.time`.
+fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32, mut css: Option<&mut String>) {
     let pal = cx.pal;
-    for s in page.shapes.iter().filter(|s| page.shape_shown(s)) {
+    for (si, s0) in page.shapes.iter().enumerate().filter(|(_, s)| page.shape_shown(s)) {
+        // the shape as it stands at this moment (text is drawn from the unmoved shape)
+        let moved = cx.time.and_then(|t| anim::shape_at(s0, t));
+        let s = moved.as_ref().unwrap_or(s0);
         let fill = render::fill_of(s, pal);
         let stroke = render::stroke_of(&s.style, pal.shape_stroke);
         let sw = s.style.width.unwrap_or(1.5);
         let filt = if s.style.shadow { " filter=\"url(#sh)\"" } else { "" };
         let _ = write!(o, "<g{filt}>");
+        if let (Some(t), Anim::Glow) = (cx.time, s.style.anim) {
+            let c = render::glow_color(&s.style, stroke);
+            for part in library::shape_parts(s).iter().filter(|p| p.kind != PK::Hit) {
+                let pts: Vec<Pos2> = part.pts.iter().map(|p| l2w(s, *p)).collect();
+                for (w, a) in render::glow_layers(sw, anim::glow_level(&s.style, t)) {
+                    let _ = write!(o, "<path d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{w:.2}\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>", path_d(&pts, part.closed), col(render::with_alpha(c, a)));
+                }
+            }
+        }
+        let animated = match css.as_deref_mut() {
+            Some(rules) if s.style.anim != Anim::None => {
+                let (style, kf) = shape_css(s, si, pal);
+                rules.push_str(&kf);
+                let _ = write!(o, "<g style=\"{style}\">");
+                true
+            }
+            _ => false,
+        };
         if let (Some(data), "image") = (&s.image, s.kind.as_str()) {
             let (cx0, cy0) = s.center();
             let _ = write!(o, "<image href=\"data:image/png;base64,{data}\" x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" preserveAspectRatio=\"none\" transform=\"rotate({:.2} {:.2} {:.2})\"/>", s.x, s.y, s.w, s.h, s.rot, cx0, cy0);
@@ -103,38 +146,78 @@ fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32) {
             if let Some(sub) = cx.doc.and_then(|d| d.linked_page(s)) {
                 if let Some((content, k, at)) = geom::preview_fit(s, sub) {
                     let _ = write!(o, "<g transform=\"translate({:.2} {:.2}) scale({:.5}) translate({:.2} {:.2})\">", at.x, at.y, k, -content.min.x, -content.min.y);
-                    let sub_cx = Ctx { painter: cx.painter, view: cx.view, pal: cx.pal, images: cx.images, doc: cx.doc, depth: cx.depth + 1 };
-                    write_items(o, &sub_cx, sub, fill);
+                    let sub_cx = Ctx { depth: cx.depth + 1, time: cx.time.or(Some(0.0)), ..*cx };
+                    write_items(o, &sub_cx, sub, fill, None);
                     o.push_str("</g>");
                 }
             }
         }
-        if !render::label_drawn_last(s) { for t in render::text_shapes(cx, s) { eshape_svg(o, &t); } }
+        if animated { o.push_str("</g>"); }
+        if !render::label_drawn_last(s0) { for t in render::text_shapes(cx, s0) { eshape_svg(o, &t); } }
         o.push_str("</g>");
     }
     for (ci, route) in render::page_routes(page) {
         let c = &page.conns[ci];
         let mut out = vec![];
-        render::draw_conn(cx, &mut out, c, route.clone(), page_bg, true);
+        let a = c.style.anim;
+        let blink = css.is_some() && a == Anim::Blink;
+        if blink {
+            let name = format!("nqc{ci}");
+            if let Some(r) = css.as_deref_mut() { let _ = write!(r, "@keyframes {name}{{0%,49.9%{{opacity:1}}50%,100%{{opacity:.18}}}}"); }
+            let _ = write!(o, "<g style=\"animation:{name} {:.2}s infinite\">", anim::period(&c.style));
+        }
         let sw = c.style.width.unwrap_or(1.5);
+        let line = render::stroke_of(&c.style, pal.conn);
+        let moving = render::glow_color(&c.style, line);
+        if let (Some(rules), Anim::Glow) = (css.as_deref_mut(), a) {
+            // a wide soft line under the connector that brightens and fades
+            let name = format!("nqc{ci}");
+            let _ = write!(rules, "@keyframes {name}{{0%,100%{{opacity:.2}}50%{{opacity:.9}}}}");
+            for (w, al) in render::glow_layers(sw, 1.0) {
+                let _ = write!(o, "<path d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{w:.2}\" stroke-linejoin=\"round\" stroke-linecap=\"round\" style=\"animation:{name} {:.2}s ease-in-out infinite\"/>", path_d(&route, false), col(render::with_alpha(moving, al)), anim::period(&c.style));
+            }
+        }
+        // the label goes on last, over any moving dashes
+        render::draw_conn(cx, &mut out, c, route.clone(), page_bg, false);
         let da = dash_attr(c.style.dash, sw);
-        if c.style.dash != Dash::Solid {
+        if c.style.dash != Dash::Solid && a != Anim::Flow {
             // dashed lines come back as many segments; emit the main path once (under the label) with dash attributes instead
-            let pts = route;
-            let _ = write!(o, "<path d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{sw}\"{da}/>", path_d(&pts, false), col(render::stroke_of(&c.style, pal.conn)));
+            let pts = &route;
+            let _ = write!(o, "<path d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{sw}\"{da}/>", path_d(pts, false), col(render::stroke_of(&c.style, pal.conn)));
         }
         for sh in &out {
-            if c.style.dash != Dash::Solid { if let EShape::LineSegment { .. } = sh { continue; } }
+            if c.style.dash != Dash::Solid && a != Anim::Flow { if let EShape::LineSegment { .. } = sh { continue; } }
             eshape_svg(o, sh);
         }
+        if let (Some(rules), Anim::Flow | Anim::Dots) = (css.as_deref_mut(), a) {
+            // dashes (or round dots: zero-length dashes with round ends) whose offset runs down
+            let name = format!("nqc{ci}");
+            let shift = anim::travel(a, sw, 1.0);
+            let _ = write!(rules, "@keyframes {name}{{from{{stroke-dashoffset:{shift:.2}}}to{{stroke-dashoffset:0}}}}");
+            let (pattern, width, cap) = if a == Anim::Flow { let (d, g) = anim::flow_dash(sw); (format!("{d:.2} {g:.2}"), sw, "butt") } else { let (gap, r) = anim::dot_spacing(sw); (format!("0 {gap:.2}"), r * 2.0, "round") };
+            let _ = write!(o, "<path d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{width:.2}\" stroke-linecap=\"{cap}\" stroke-linejoin=\"round\" stroke-dasharray=\"{pattern}\" style=\"animation:{name} {:.2}s linear infinite\"/>", path_d(&route, false), col(moving), anim::period(&c.style));
+        }
+        for sh in render::conn_label(cx, c, &route, page_bg) { eshape_svg(o, &sh); }
+        if blink { o.push_str("</g>"); }
     }
     for s in page.shapes.iter().filter(|s| page.shape_shown(s) && render::label_drawn_last(s)) {
         for sh in render::masked_label(cx, s, page_bg) { eshape_svg(o, &sh); }
     }
 }
 
-/// Build a standalone SVG of the page's content.
-pub fn page_svg(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painter, padding: f32) -> (String, f32, f32) {
+/// How animations appear in an export.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Motion {
+    /// A still picture (animations at their first frame).
+    Still,
+    /// The picture at this many seconds.
+    At(f64),
+    /// Moving, as CSS animations (for SVG files).
+    Css,
+}
+
+/// The page's content box, with padding.
+pub fn content_bounds(page: &Page, padding: f32) -> Rect {
     let mut bounds: Option<Rect> = None;
     for s in &page.shapes {
         let mut b = geom::bbox(s);
@@ -145,12 +228,20 @@ pub fn page_svg(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painte
         bounds = geom::rect_union(bounds, b);
     }
     for c in &page.conns { for p in geom::route(page, c) { bounds = geom::rect_union(bounds, Rect::from_center_size(p, vec2(16.0, 16.0))); } }
-    let b = bounds.unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(page.width, page.height))).expand(padding);
-    page_svg_area(doc, page, pal, painter, b)
+    bounds.unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(page.width, page.height))).expand(padding)
+}
+
+/// Build a standalone SVG of the page's content.
+pub fn page_svg(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painter, padding: f32) -> (String, f32, f32) {
+    page_svg_with(doc, page, pal, painter, content_bounds(page, padding), Motion::Still)
 }
 
 /// SVG of a fixed area of the page, e.g. the whole sheet for printing.
 pub fn page_svg_area(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painter, b: Rect) -> (String, f32, f32) {
+    page_svg_with(doc, page, pal, painter, b, Motion::Still)
+}
+
+pub fn page_svg_with(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painter, b: Rect, motion: Motion) -> (String, f32, f32) {
     let (w, h) = (b.width().ceil(), b.height().ceil());
     let page_bg = page.bg.map(crate::theme::to_c32).unwrap_or(pal.page);
     let mut o = String::new();
@@ -159,10 +250,66 @@ pub fn page_svg_area(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &P
     o.push_str("<defs><filter id=\"sh\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"150%\"><feDropShadow dx=\"0\" dy=\"4\" stdDeviation=\"3.5\" flood-color=\"#000\" flood-opacity=\"0.22\"/></filter></defs>");
 
     let empty = HashMap::new();
-    let cx = Ctx { painter, view: View { origin: Pos2::ZERO, pan: egui::Vec2::ZERO, zoom: 1.0 }, pal, images: &empty, doc, depth: 0 };
-    write_items(&mut o, &cx, page, page_bg);
+    let time = match motion { Motion::Still => Some(0.0), Motion::At(t) => Some(t), Motion::Css => None };
+    let cx = Ctx { painter, view: View { origin: Pos2::ZERO, pan: egui::Vec2::ZERO, zoom: 1.0 }, pal, images: &empty, doc, depth: 0, time };
+    let mut rules = String::new();
+    let mut items = String::new();
+    write_items(&mut items, &cx, page, page_bg, if motion == Motion::Css { Some(&mut rules) } else { None });
+    if !rules.is_empty() {
+        // viewers that don't animate (or people who asked for less motion) see the still picture
+        let _ = write!(o, "<style>@media (prefers-reduced-motion: reduce){{*{{animation:none!important}}}}{rules}</style>");
+    }
+    o.push_str(&items);
     o.push_str("</svg>");
     (o, w, h)
+}
+
+/// An animated GIF of the page's content: one loop of its animations at 12.5 frames a second.
+/// Each frame after the first only carries the part of the picture that changed.
+pub fn page_gif(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painter, padding: f32, scale: f32) -> Result<Vec<u8>, String> {
+    const DELAY_CS: u16 = 8;
+    let b = content_bounds(page, padding);
+    let secs = anim::loop_secs(page);
+    let n = ((secs * 100.0 / DELAY_CS as f32).round() as usize).max(1);
+    let mut frames: Vec<(u32, u32, Vec<u8>)> = Vec::with_capacity(n);
+    for i in 0..n {
+        let (svg, _, _) = page_svg_with(doc, page, pal, painter, b, Motion::At(i as f64 * secs as f64 / n as f64));
+        let t = tree(&svg)?;
+        let size = t.size().to_int_size().scale_by(scale).ok_or("bad size")?;
+        let mut pm = resvg::tiny_skia::Pixmap::new(size.width(), size.height()).ok_or("image too large")?;
+        resvg::render(&t, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pm.as_mut());
+        frames.push((size.width(), size.height(), pm.take()));
+    }
+    let (w, h) = (frames[0].0, frames[0].1);
+    if w > u16::MAX as u32 || h > u16::MAX as u32 { return Err("image too large".into()); }
+    let mut out = Vec::new();
+    {
+        let mut enc = gif::Encoder::new(&mut out, w as u16, h as u16, &[]).map_err(|e| e.to_string())?;
+        enc.set_repeat(gif::Repeat::Infinite).map_err(|e| e.to_string())?;
+        let mut prev: Option<&Vec<u8>> = None;
+        for (_, _, px) in &frames {
+            // the box of pixels that differ from the previous frame
+            let (mut x0, mut y0, mut x1, mut y1) = (0, 0, w, h);
+            if let Some(p) = prev {
+                let (mut a, mut bb, mut c, mut d) = (w, h, 0, 0);
+                for y in 0..h { for x in 0..w {
+                    let k = ((y * w + x) * 4) as usize;
+                    if px[k..k + 4] != p[k..k + 4] { a = a.min(x); bb = bb.min(y); c = c.max(x + 1); d = d.max(y + 1); }
+                } }
+                if c == 0 { (x0, y0, x1, y1) = (0, 0, 1, 1); } else { (x0, y0, x1, y1) = (a, bb, c, d); }
+            }
+            let (fw, fh) = (x1 - x0, y1 - y0);
+            let mut rgba = Vec::with_capacity((fw * fh * 4) as usize);
+            for y in y0..y1 { let k = ((y * w + x0) * 4) as usize; rgba.extend_from_slice(&px[k..k + (fw * 4) as usize]); }
+            // the page background is opaque, so premultiplied pixels are already plain colours
+            let mut f = gif::Frame::from_rgba_speed(fw as u16, fh as u16, &mut rgba, 20);
+            f.left = x0 as u16; f.top = y0 as u16; f.delay = DELAY_CS;
+            f.dispose = gif::DisposalMethod::Keep;
+            enc.write_frame(&f).map_err(|e| e.to_string())?;
+            prev = Some(px);
+        }
+    }
+    Ok(out)
 }
 
 /// Parse an SVG made by this module (with the fonts used for export).

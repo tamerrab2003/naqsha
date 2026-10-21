@@ -1,5 +1,6 @@
 //! Painting shapes and connectors into egui.
 use crate::geom::{self, l2w};
+use crate::anim;
 use crate::library::{self, PK};
 use crate::model::*;
 use crate::theme::{to_c32, Pal};
@@ -155,6 +156,7 @@ pub fn place_text(out: &mut Vec<EShape>, g: Arc<Galley>, bx: Rect, ha: HAlign, v
     out.push(EShape::Text(TextShape::new(pos, g, color).with_angle(angle_deg.to_radians())));
 }
 
+#[derive(Clone, Copy)]
 pub struct Ctx<'a> {
     pub painter: &'a Painter,
     pub view: View,
@@ -164,6 +166,9 @@ pub struct Ctx<'a> {
     pub doc: Option<&'a Document>,
     /// Preview nesting level (previews inside previews stop at 2).
     pub depth: u8,
+    /// Animation clock in seconds: the moment to draw (0 for still pictures). None draws only
+    /// the still base of each animation, for the SVG export that adds the motion as CSS.
+    pub time: Option<f64>,
 }
 
 /// Draw the linked page's content, scaled to fit inside the shape.
@@ -181,7 +186,7 @@ fn draw_preview(cx: &Ctx, out: &mut Vec<EShape>, s: &Shape, sub: &Page, fill: Co
     };
     let zoom = v.zoom * k;
     let sv = View { origin: v.s(at) - content.min.to_vec2() * zoom, pan: Vec2::ZERO, zoom };
-    let sub_cx = Ctx { painter: cx.painter, view: sv, pal: cx.pal, images: cx.images, doc: cx.doc, depth: cx.depth + 1 };
+    let sub_cx = Ctx { view: sv, depth: cx.depth + 1, ..*cx };
     for t in &sub.shapes {
         if !sub.shape_shown(t) { continue; }
         let legible = t.style.font_size.unwrap_or(13.0) * zoom >= 3.5;
@@ -195,6 +200,15 @@ fn draw_preview(cx: &Ctx, out: &mut Vec<EShape>, s: &Shape, sub: &Page, fill: Co
 
 /// Draw one shape. `skip_text` hides text (e.g. while it is being edited).
 pub fn draw_shape(cx: &Ctx, out: &mut Vec<EShape>, s: &Shape, with_text: bool) {
+    if let Some(t) = cx.time.filter(|_| s.style.anim != Anim::None) {
+        if s.style.anim == Anim::Glow { glow_halo(cx, out, s, anim::glow_level(&s.style, t)); }
+        if let Some(moved) = anim::shape_at(s, t) {
+            // the shape moves; its text stays put (a spinning fan's tag doesn't spin)
+            draw_shape(&Ctx { time: None, ..*cx }, out, &moved, false);
+            if with_text { out.extend(text_shapes(cx, s)); }
+            return;
+        }
+    }
     let v = cx.view;
     let z = v.zoom;
     let fill = fill_of(s, cx.pal);
@@ -256,6 +270,25 @@ pub fn draw_shape(cx: &Ctx, out: &mut Vec<EShape>, s: &Shape, with_text: bool) {
         out.extend(text_shapes(cx, s));
     }
 }
+
+/// Soft light around a glowing shape: its outline drawn wider and fainter, a few times over.
+fn glow_halo(cx: &Ctx, out: &mut Vec<EShape>, s: &Shape, level: f32) {
+    let z = cx.view.zoom;
+    let c = glow_color(&s.style, stroke_of(&s.style, cx.pal.shape_stroke));
+    let sw = s.style.width.unwrap_or(1.5);
+    for p in library::shape_parts(s).iter().filter(|p| p.kind != PK::Hit) {
+        let pts: Vec<Pos2> = p.pts.iter().map(|q| cx.view.s(l2w(s, *q))).collect();
+        for (w, a) in glow_layers(sw, level) { stroke_path(out, &pts, p.closed, Stroke::new(w * z, with_alpha(c, a)), Dash::Solid); }
+    }
+}
+
+/// Widths and opacities of the glow's layers, widest and faintest first.
+pub fn glow_layers(sw: f32, level: f32) -> [(f32, f32); 4] {
+    [(sw + 16.0, 0.07 * level), (sw + 11.0, 0.10 * level), (sw + 7.0, 0.14 * level), (sw + 3.5, 0.22 * level)]
+}
+
+/// The colour of glows, dots and flow: the animation's own colour, else the line colour.
+pub fn glow_color(st: &Style, line: Color32) -> Color32 { st.anim_color.map(to_c32).map(|c| with_alpha(c, st.opacity.unwrap_or(1.0))).unwrap_or(line) }
 
 /// Engineering symbols keep their tag text out of the shape pass: it is drawn after the
 /// connectors, on a small backing in the page colour, so pipes never run through a tag.
@@ -416,7 +449,13 @@ pub fn draw_conn(cx: &Ctx, out: &mut Vec<EShape>, c: &Conn, pts_w: Vec<Pos2>, pa
     if pts.len() < 2 { return pts_w; }
     let width = c.style.width.unwrap_or(1.5);
     let sw = width * z;
-    let col = stroke_of(&c.style, cx.pal.conn);
+    let mut col = stroke_of(&c.style, cx.pal.conn);
+    let a = c.style.anim;
+    let moving = glow_color(&c.style, col);
+    if a == Anim::Blink && cx.time.map_or(false, |t| anim::blink_off(&c.style, t)) { col = with_alpha(col, 0.18); }
+    if let (Anim::Glow, Some(t)) = (a, cx.time) {
+        for (w, al) in glow_layers(width, anim::glow_level(&c.style, t)) { stroke_path(out, &pts, false, Stroke::new(w * z, with_alpha(moving, al)), Dash::Solid); }
+    }
     let size = (8.0 + width * 2.2) * z;
     let n = pts.len();
     let dir_end = (pts[n - 1] - pts[n - 2]).normalized();
@@ -427,7 +466,24 @@ pub fn draw_conn(cx: &Ctx, out: &mut Vec<EShape>, c: &Conn, pts_w: Vec<Pos2>, pa
     let ss = shorten(c.arrow_start, size).min((pts[0] - pts[1]).length() * 0.9);
     pts[n - 1] = pts[n - 1] - dir_end * se;
     pts[0] = pts[0] - dir_start * ss;
-    stroke_path(out, &pts, false, Stroke::new(sw, col), c.style.dash);
+    // flowing lines show a faint pipe with the bright dashes running through it
+    stroke_path(out, &pts, false, Stroke::new(sw, if a == Anim::Flow { with_alpha(col, 0.3) } else { col }), if a == Anim::Flow { Dash::Solid } else { c.style.dash });
+    if let Some(t) = cx.time {
+        let ph = anim::phase(&c.style, t);
+        match a {
+            Anim::Flow => {
+                let (d, g) = anim::flow_dash(width);
+                for piece in anim::dashes(&pts, d * z, g * z, anim::travel(a, width, ph) * z) {
+                    out.push(EShape::Path(PathShape::line(piece, PathStroke::new(sw, moving))));
+                }
+            }
+            Anim::Dots => {
+                let (gap, r) = anim::dot_spacing(width);
+                for p in anim::dots(&pts, gap * z, anim::travel(a, width, ph) * z) { out.push(EShape::circle_filled(p, r * z, moving)); }
+            }
+            _ => {}
+        }
+    }
     head(out, c.arrow_end, tip_end, dir_end, size, col, page_bg, sw);
     head(out, c.arrow_start, tip_start, dir_start, size, col, page_bg, sw);
     if with_text { out.extend(conn_label(cx, c, &pts_w, page_bg)); }
