@@ -839,22 +839,27 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
         let g = app.set.grid_size;
         let vis = pr.intersect(crect);
         let mut step = g;
-        while step * z < 7.0 { step *= 5.0; }
+        while step * z < 10.0 { step *= 5.0; }
+        // one physical pixel wide, centred on a pixel (sharp on Retina screens too)
+        let ppp = ui.ctx().pixels_per_point();
+        let hair = 1.0 / ppp;
+        let snap = |p: f32| (p * ppp).floor() / ppp + hair / 2.0;
         let major = step * 5.0;
         let first_x = ((v.w(vis.min).x / step).floor() * step).max(0.0);
         let first_y = ((v.w(vis.min).y / step).floor() * step).max(0.0);
         let mut x = first_x;
         while x <= page.width && v.s(pos2(x, 0.0)).x <= vis.max.x {
-            let sx = v.s(pos2(x, 0.0)).x;
+            // on whole pixels, so a hairline stays one crisp, light pixel wide (as in Visio)
+            let sx = snap(v.s(pos2(x, 0.0)).x);
             let c = if (x / major).fract().abs() < 1e-4 { pal.grid_major } else { pal.grid_minor };
-            painter.line_segment([pos2(sx, pr.min.y), pos2(sx, pr.max.y)], Stroke::new(1.0, c));
+            painter.line_segment([pos2(sx, pr.min.y), pos2(sx, pr.max.y)], Stroke::new(hair, c));
             x += step;
         }
         let mut y = first_y;
         while y <= page.height && v.s(pos2(0.0, y)).y <= vis.max.y {
-            let sy = v.s(pos2(0.0, y)).y;
+            let sy = snap(v.s(pos2(0.0, y)).y);
             let c = if (y / major).fract().abs() < 1e-4 { pal.grid_major } else { pal.grid_minor };
-            painter.line_segment([pos2(pr.min.x, sy), pos2(pr.max.x, sy)], Stroke::new(1.0, c));
+            painter.line_segment([pos2(pr.min.x, sy), pos2(pr.max.x, sy)], Stroke::new(hair, c));
             y += step;
         }
     }

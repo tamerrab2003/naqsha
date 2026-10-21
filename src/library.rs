@@ -274,7 +274,7 @@ pub fn default_style(kind: &str) -> Style {
         "p_stage" => { s.bold = true; s.valign = Some(VAlign::Top); }
         "p_script" => { s.mono = true; s.align = Some(HAlign::Left); s.valign = Some(VAlign::Top); s.font_size = Some(11.5); }
         "p_job" | "p_step" => {}
-        "a_person" => { s.fill = Some(crate::model::Col::hex("#08427B")); s.stroke = Some(crate::model::Col::hex("#073B6F")); s.text = Some(crate::model::Col::hex("#FFFFFF")); }
+        "a_person" => { s.fill = Some(crate::model::Col::hex("#2F6FDB")); s.stroke = Some(crate::model::Col::hex("#2459B8")); s.text = Some(crate::model::Col::hex("#FFFFFF")); }
         "a_system" => { s.fill = Some(crate::model::Col::hex("#1168BD")); s.stroke = Some(crate::model::Col::hex("#0B4884")); s.text = Some(crate::model::Col::hex("#FFFFFF")); }
         "a_ext_system" => { s.fill = Some(crate::model::Col::hex("#8C8C8C")); s.stroke = Some(crate::model::Col::hex("#6B6B6B")); s.text = Some(crate::model::Col::hex("#FFFFFF")); }
         "a_container" | "a_database" | "a_queue" | "a_webapp" | "a_mobile" => { s.fill = Some(crate::model::Col::hex("#438DD5")); s.stroke = Some(crate::model::Col::hex("#2E6295")); s.text = Some(crate::model::Col::hex("#FFFFFF")); }
@@ -469,7 +469,9 @@ impl PB {
     }
     /// Elliptical arc from angle a0 to a1 (degrees, 0 = +x, clockwise on screen).
     fn arc(&mut self, cx: f32, cy: f32, rx: f32, ry: f32, a0: f32, a1: f32) -> &mut Self {
-        let n = (((a1 - a0).abs() / 360.0) * 64.0).ceil().max(4.0) as usize;
+        // smooth at any zoom: more points for bigger curves
+        let segs = (rx.max(ry) * 0.9).clamp(48.0, 160.0);
+        let n = (((a1 - a0).abs() / 360.0) * segs).ceil().max(4.0) as usize;
         for i in 0..=n {
             let a = (a0 + (a1 - a0) * i as f32 / n as f32) * PI / 180.0;
             let p = self.p(cx + rx * a.cos(), cy + ry * a.sin());
@@ -664,9 +666,22 @@ pub fn geometry(kind: &str, w: f32, h: f32) -> Vec<Part> {
             b.poly(&[(k * 0.6, 0.0), (w - k * 0.6, 0.0), (w, k), (w - k * 0.6, h), (k * 0.6, h), (0.0, k)]);
         }
         "a_person" => {
-            let hr = (w.min(h) * 0.2).min(32.0);
-            b.ell(w / 2.0, hr + 2.0, hr, hr);
-            b.rr(0.0, hr * 2.0 - 2.0, w, h - hr * 2.0 + 2.0, 22.0);
+            // a head over rounded shoulders, with a little air between them
+            let hr = (w.min(h) * 0.17).min(30.0);
+            let top = hr * 2.0 + hr * 0.3;
+            let (bw, bh) = (w, h - top);
+            let sh = (bw * 0.2).min(bh * 0.45).min(40.0);
+            let r = (bh * 0.16).min(14.0);
+            b.m(0.0, top + sh)
+                .c(0.0, top + sh * 0.35, sh * 0.35, top, sh, top)
+                .l(bw - sh, top)
+                .c(bw - sh * 0.35, top, bw, top + sh * 0.35, bw, top + sh)
+                .l(bw, h - r)
+                .arc(bw - r, h - r, r, r, 0.0, 90.0)
+                .l(r, h)
+                .arc(r, h - r, r, r, 90.0, 180.0)
+                .z();
+            b.ell(w / 2.0, hr, hr, hr);
         }
         "a_system" | "a_ext_system" | "a_container" | "a_component" => { b.rr(0.0, 0.0, w, h, 8.0); }
         "a_database" => {
