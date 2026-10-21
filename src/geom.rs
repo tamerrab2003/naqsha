@@ -83,7 +83,10 @@ pub fn ports(s: &Shape) -> Vec<Port> {
         .iter()
         .map(|&(nx, ny)| {
             // icon shapes carry their label underneath: attach bottom connectors below the label
-            let ly = if ny >= 0.999 && (library::is_icon(&s.kind) || s.kind == "image") && !s.text.is_empty() { s.h + 24.0 } else { ny * s.h };
+            let ly = if ny >= 0.999 && (library::is_icon(&s.kind) || s.kind == "image") && !s.text.is_empty() { s.h + 24.0 }
+                // so do equipment symbols (tag and name, two lines)
+                else if ny >= 0.999 && library::is_symbol(&s.kind) && !library::is_electrical(&s.kind) && !library::text_inside(&s.kind) && !s.text.is_empty() { s.h + 40.0 }
+                else { ny * s.h };
             let pos = l2w(s, pos2(nx * s.w, ly));
             let mut d = if nx <= 0.001 { vec2(-1.0, 0.0) } else if nx >= 0.999 { vec2(1.0, 0.0) } else if ny <= 0.001 { vec2(0.0, -1.0) } else if ny >= 0.999 { vec2(0.0, 1.0) } else { axis(vec2(nx - 0.5, ny - 0.5)) };
             if s.flip_h { d.x = -d.x; }

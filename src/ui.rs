@@ -1125,7 +1125,7 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
                 for (i, c) in cats.iter().enumerate() {
                     let n = if i == 0 { entries.len() } else { entries.iter().filter(|e| e.cat == *c).count() };
                     // categories filled by Naqsha Pro stay hidden in a build without it
-                    if n == 0 && (*c == "Water & Process" || *c == "Electrical") { continue; }
+                    if n == 0 && (*c == "Water & Process" || *c == "Electrical" || *c == "Manufacturing") { continue; }
                     let on = app.gallery.cat == i;
                     let (rect, resp) = ui.allocate_exact_size(vec2(180.0, 28.0), Sense::click());
                     if on { ui.painter().rect_filled(rect, 6.0, with_alpha(pal.accent, 0.14)); } else if resp.hovered() { ui.painter().rect_filled(rect, 6.0, pal.hover); }

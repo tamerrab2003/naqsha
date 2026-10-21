@@ -250,6 +250,10 @@ pub fn is_symbol(kind: &str) -> bool { kind.starts_with("x_") }
 pub fn is_electrical(kind: &str) -> bool { kind.starts_with("x_e_") }
 /// Instrument bubbles (Naqsha Pro): the tag is written inside.
 pub fn is_instrument(kind: &str) -> bool { kind.starts_with("xi_") }
+
+/// Engineering symbols that are boxes with their text inside (a distribution board, a value-stream
+/// process box, a demand card), rather than a tag under the symbol.
+pub fn text_inside(kind: &str) -> bool { matches!(kind, "x_e_panel" | "x_vsm_process" | "x_vsm_control" | "x_mf_demand") }
 pub fn is_container(kind: &str) -> bool { matches!(kind, "container" | "boundary" | "lane_h" | "lane_v" | "p_stage") || kind.starts_with("g_") }
 /// Architecture cards (decision records, risks, requirements…): text with a glyph on the left.
 pub fn is_card(kind: &str) -> bool { matches!(kind, "a_adr" | "a_risk" | "a_req" | "a_principle" | "a_assumption") }
@@ -328,6 +332,13 @@ pub fn text_box(kind: &str, w: f32, h: f32) -> TextBox {
     if kind == "x_e_panel" {
         // a board or panel is a box: its tag goes inside, under the header strip
         return r(4.0, h * 0.24, w - 8.0, h * 0.74);
+    }
+    if kind == "x_vsm_process" || kind == "x_mf_demand" {
+        // the name in the header strip, the rest below it
+        return r(4.0, 2.0, w - 8.0, h - 4.0);
+    }
+    if kind == "x_vsm_control" {
+        return r(4.0, 4.0, w - 8.0, h - 8.0);
     }
     if is_electrical(kind) {
         return r(w + 8.0, h / 2.0 - 17.0, 150.0, 34.0);
