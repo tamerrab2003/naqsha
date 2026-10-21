@@ -40,17 +40,19 @@ Field names follow the submission form; check the character limits it shows.
 <li>Your diagrams stay in your file. Nothing is uploaded, and there is no account to create.</li>
 </ul>
 <p><b>Naqsha Pro (optional, paid)</b></p>
-<p>Naqsha is free to use. Naqsha Pro adds tools for engineers who deliver drawings: P&amp;ID, water and wastewater, and IEC electrical symbols with automatic tags; sheets with your title block; drawing sets with a legend and register; equipment, instrument and cable schedules; and a bill of materials from your own product list. Pro starts with a 14-day free trial inside the add-in (no payment details needed). After that it is a subscription ($8 a month or $79 a year) or a lifetime licence ($129, with a year of updates), bought at nixpx.com/naqsha through our reseller Lemon Squeezy. One licence works in the add-in, the browser version and the desktop apps for Mac, Windows and Linux.</p>
+<p>Naqsha is free to use. Naqsha Pro adds tools for engineers who deliver drawings: P&amp;ID, water and wastewater, IEC electrical, production line and IoT symbols with automatic tags; line balancing and value stream maps; sheets with your title block; drawing sets with a legend and register; equipment, instrument and cable schedules; and a bill of materials from your own product list. Pro starts with a 14-day free trial inside the add-in (no payment details needed). After that it is a subscription ($8 a month or $79 a year) or a lifetime licence ($129, with a year of updates), bought at nixpx.com/naqsha through our reseller Lemon Squeezy. One licence works in the add-in, the browser version and the desktop apps for Mac, Windows and Linux.</p>
 <p><b>Requirements:</b> an internet connection (the editor is loaded from nixpx.com). Editing diagrams again needs Word 2016 or later, PowerPoint with PowerPoint API 1.5, or Excel with Excel API 1.9; the newest Office versions find the selected diagram automatically.</p>
 ```
 
-**Screenshots** (1366 × 768 PNG, up to 5; use clean sample documents, not client work):
+**Screenshots** (1366 × 768 PNG, up to 5; use the clean sample files, never client work: *Sample
+report.docx*, *Sample deck.pptx* and *Sample equipment list.xlsx*):
 
-1. Word: the Naqsha editor window open over a document, with a process flow or flowchart template.
-2. Word: the inserted diagram in a document, task pane open with *Edit selected diagram* highlighted.
-3. PowerPoint: a slide with an architecture diagram.
-4. Excel: a sheet with a diagram next to a table.
-5. The editor with a Pro template (water treatment or single-line diagram).
+1. Word (*Sample report*): the Naqsha editor window open over the report, showing the Pump Station
+   P&ID template.
+2. Word: the P&ID inserted under "Figure 1", task pane open with *Edit selected diagram* highlighted.
+3. PowerPoint (*Sample deck*, slide 2): the IIoT Monitoring Architecture template on the slide.
+4. Excel (*Sample equipment list*): a pump station diagram next to the equipment table.
+5. The editor with a production line template (Beverage Bottling Line) and Pro › Line Balance open.
 
 **Logo:** 300 × 300 PNG: `assets/icon-300.png`.
 
