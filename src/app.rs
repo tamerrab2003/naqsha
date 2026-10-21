@@ -885,6 +885,9 @@ impl App {
     }
     /// Returns true if saved. Save As can also write Visio (.vsdx) or draw.io files.
     pub fn save(&mut self, save_as: bool) -> bool {
+        // inside a document (Word, ONLYOFFICE…) the diagram lives in the host file: Save puts it
+        // back there, the way Insert does, instead of downloading a .nqs
+        if crate::embed::active() { crate::embed::save_to_host(); return true; }
         #[cfg(target_arch = "wasm32")]
         {
             // the browser saves by downloading a .nqs; Export has Visio and draw.io

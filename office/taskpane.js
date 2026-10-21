@@ -291,7 +291,8 @@
 			say("Couldn't insert the diagram: " + (e && e.message ? e.message : e), true);
 		} finally {
 			busy(false);
-			selected().then(hint, function () { hint(null); });
+			lastSel = "?";
+			check();
 		}
 	}
 
@@ -324,16 +325,26 @@
 		$("new").className = sel ? "" : "primary";
 		small.textContent = sel ? "Opens the selected diagram in Naqsha" : "Select a Naqsha diagram first";
 	}
+	var lastSel = "";
+	function check() {
+		if (working) return;
+		selected().then(function (sel) {
+			var key = sel ? sel.id : "";
+			if (key !== lastSel) { lastSel = key; hint(sel); }
+		}, function () { if (lastSel) { lastSel = ""; hint(null); } });
+	}
 	function watchSelection() {
-		if (!Office.EventType.DocumentSelectionChanged) return;
-		Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, function () {
-			clearTimeout(checking);
-			checking = setTimeout(function () {
-				if (working) return;
-				selected().then(hint, function () { hint(null); });
-			}, 250);
-		});
-		selected().then(hint, function () { hint(null); });
+		if (Office.EventType.DocumentSelectionChanged) {
+			Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, function () {
+				clearTimeout(checking);
+				checking = setTimeout(check, 250);
+			});
+		}
+		// Word for Mac doesn't always report selection changes (notably in a file that was just
+		// reopened, when the pane opened with it): look again every second as well
+		setInterval(check, 1000);
+		hint(null);
+		check();
 	}
 
 	Office.onReady(function (info) {

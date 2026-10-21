@@ -67,6 +67,12 @@ mod imp {
         let _ = parent.post_message(&js, &origin);
     }
 
+    /// Save while embedded: send the diagram to the host as if it had asked for it.
+    pub fn save_to_host() {
+        if let Ok(mut q) = INBOX.lock() { q.push(Msg::Export); }
+        if let Some(c) = crate::platform::CTX.get() { c.request_repaint(); }
+    }
+
     pub fn frame(app: &mut App, ui: &egui::Ui) {
         if !active() { return; }
         if !GREETED.load(Ordering::SeqCst) { app.viewer = crate::files::web::param("view").map_or(false, |v| v != "0"); }
@@ -118,8 +124,10 @@ mod imp {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use imp::{active, frame, install};
+pub use imp::{active, frame, install, save_to_host};
 
 /// The desktop app is never embedded.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn active() -> bool { false }
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_to_host() {}
