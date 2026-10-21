@@ -4,7 +4,7 @@
 
 # Naqsha
 
-**Diagramming and architecture for macOS, Windows, Linux and the browser: flowcharts, cloud and solution architecture, CI/CD pipelines, Visio and draw.io files.**
+**Diagramming and architecture for macOS, Windows, Linux, the browser and your Office documents: flowcharts, cloud and solution architecture, CI/CD pipelines, Node-RED flows and moving diagrams, Visio and draw.io files.**
 
 *naqsha* (نقشه): a plan, a map, a blueprint.
 
@@ -88,6 +88,23 @@ Open or drop a CI/CD definition and Naqsha draws it:
 |---|
 | GitHub Actions (`.github/workflows/*.yml`) · GitLab CI (`.gitlab-ci.yml`) · Azure Pipelines (`azure-pipelines.yml`) · Bitbucket Pipelines (`bitbucket-pipelines.yml`) · Jenkins (`Jenkinsfile`, declarative) |
 
+### Diagrams that move
+
+Make product flow along a line, data run along a link, a pump spin or an alarm blink. Animations play in the editor (View › Play), export as an animated GIF for slides and email, and stay animated in SVG for web pages.
+
+<img src="docs/images/production-line.gif" alt="A beverage bottling line in Naqsha: product flows along the conveyors and the bottleneck machine glows" width="100%">
+
+### Node-RED
+
+- **Draw your flows.** Open a `flows.json`, or paste a flow copied from Node-RED. Every tab becomes a page, subflows open from the nodes that use them, and groups, link wires and configuration nodes come along. Useful for documenting what runs on the edge.
+- **Live drawings.** The [`node-red-contrib-naqsha`](nodered/) add-on shows a Naqsha drawing as a live view from your flows: levels and flows on the instruments, pumps running or stopped, alarms in red. Monitoring only; nothing is sent back.
+
+<img src="docs/images/nodered-live.png" alt="A pump station P&ID served live by Node-RED, with pressure, flow and level values on the instruments and the duty pump's discharge line flowing" width="100%">
+
+### Inside Word, Excel, PowerPoint and ONLYOFFICE
+
+Insert a diagram into a document and keep it editable: the file holds the picture and the diagram, so it opens in Naqsha again whenever it changes. See [`office/`](office/) for the Microsoft Office add-in and [`onlyoffice/`](onlyoffice/) for the ONLYOFFICE plugin.
+
 ## Open and save any format
 
 | Format | Open | Save | What's kept |
@@ -150,13 +167,22 @@ Shown with Mac keys. On Windows and Linux, ⌘ is Ctrl, ⌥ is Alt and ⇧ is Sh
 naqsha --export in.vsdx out.drawio          # convert between .nqs, .vsdx, .drawio
 naqsha --export in.nqs out.pdf 2 --dark      # page 2 as PDF / PNG / SVG, optionally dark
 naqsha --export .github/workflows/ci.yml ci.png
+naqsha --export line.nqs line.gif            # one loop of the page's animations as a GIF
 naqsha --arrange lr in.drawio out.nqs        # auto-arrange: tb | lr | grid
 naqsha --templates ./out                     # write every built-in template as .nqs
 ```
 
 ## Naqsha Pro
 
-Naqsha is free and open source. **Naqsha Pro** adds what engineers need to deliver drawings: equipment tags and schedules exported for Excel, with sheets and title blocks and P&ID, process and electrical libraries coming next. Pro is part of the official downloads, with a 14-day free trial, a subscription or a one-time licence. See [nixpx.com/naqsha](https://nixpx.com/naqsha#pro).
+Naqsha is free and open source. **Naqsha Pro** adds what engineers need to deliver drawings:
+
+- P&ID, water and wastewater, IEC electrical, production line, value stream map and IoT symbols, with automatic tags
+- Line Balance (takt, bottleneck, line output) and the VSM lead-time ladder
+- Sheets with your title block, drawing sets with a legend and register, multi-sheet PDF, DXF for AutoCAD
+- Equipment, instrument and cable schedules for Excel, and a bill of materials from your own product list
+- Nineteen ready-made engineering drawings, from treatment plants to bottling lines and IIoT architectures
+
+Pro is part of the official downloads and the browser version, with a 14-day free trial, a subscription or a lifetime licence. See [nixpx.com/naqsha](https://nixpx.com/naqsha#pro).
 
 Pro's code is closed source and isn't in this repository: building from source gives the free edition (`src/pro_stub.rs`). Diagrams made with Pro open and display in every edition.
 
