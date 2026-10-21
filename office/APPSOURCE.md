@@ -70,7 +70,8 @@ How to test
 3. Select the inserted picture. In the task pane, "Edit selected diagram" becomes the main button;
    click it. The same diagram opens in the editor. Change something (e.g. drag a shape) and click
    Insert: the picture is replaced in place, keeping its size.
-4. Save, close and reopen the file; select the diagram and click Edit again: it opens with your changes.
+4. Save, close and reopen the file: the Naqsha pane opens with it. Select the diagram and click Edit
+   again: it opens with your changes.
 5. Cancel in the dialog closes it without changing the file.
 
 Free vs Pro

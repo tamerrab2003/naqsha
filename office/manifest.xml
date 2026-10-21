@@ -8,7 +8,7 @@
            xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
   <Id>eee68fee-d504-4395-b45d-572422651c2f</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.0.1.0</Version>
   <ProviderName>Nixpx LLC</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Naqsha"/>
@@ -64,7 +64,7 @@
                     <bt:Image size="80" resid="Icon.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>Naqsha.Pane</TaskpaneId>
+                    <TaskpaneId>Office.AutoShowTaskpaneWithDocument</TaskpaneId>
                     <SourceLocation resid="Taskpane.Url"/>
                   </Action>
                 </Control>
@@ -102,7 +102,7 @@
                     <bt:Image size="80" resid="Icon.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>Naqsha.Pane</TaskpaneId>
+                    <TaskpaneId>Office.AutoShowTaskpaneWithDocument</TaskpaneId>
                     <SourceLocation resid="Taskpane.Url"/>
                   </Action>
                 </Control>
@@ -140,7 +140,7 @@
                     <bt:Image size="80" resid="Icon.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>Naqsha.Pane</TaskpaneId>
+                    <TaskpaneId>Office.AutoShowTaskpaneWithDocument</TaskpaneId>
                     <SourceLocation resid="Taskpane.Url"/>
                   </Action>
                 </Control>

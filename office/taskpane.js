@@ -29,9 +29,35 @@
 
 	function stored(id) { return Office.context.document.settings.get(marker(id)); }
 
+	// does this file hold a Naqsha diagram? (settings can't be listed, but the pictures can)
+	function hasDiagrams() {
+		if (host === "Word") {
+			return Word.run(async function (ctx) {
+				var pics = ctx.document.body.inlinePictures;
+				pics.load("items/altTextDescription");
+				await ctx.sync();
+				return pics.items.some(function (p) { return idIn(p.altTextDescription); });
+			});
+		}
+		if (host === "Excel" && supported("ExcelApi", "1.9")) {
+			return Excel.run(async function (ctx) {
+				var sheets = ctx.workbook.worksheets;
+				sheets.load("items");
+				await ctx.sync();
+				var all = sheets.items.map(function (w) { var sh = w.shapes; sh.load("items/name"); return sh; });
+				await ctx.sync();
+				return all.some(function (sh) { return sh.items.some(function (x) { return idIn(x.name); }); });
+			});
+		}
+		return Promise.resolve(false);
+	}
+
 	function store(id, json) {
 		return new Promise(function (resolve, reject) {
 			Office.context.document.settings.set(marker(id), json);
+			// reopen this pane whenever the file is opened, so its diagrams can be edited straight away
+			// (the manifest's task pane id is Office.AutoShowTaskpaneWithDocument)
+			Office.context.document.settings.set("Office.AutoShowTaskpaneWithDocument", true);
 			Office.context.document.settings.saveAsync(function (r) {
 				if (r.status === Office.AsyncResultStatus.Succeeded) resolve(); else reject(r.error);
 			});
@@ -320,5 +346,14 @@
 		$("new").onclick = function () { run(null); };
 		$("edit").onclick = edit;
 		watchSelection();
+		// files from before auto-open: turn it on when they hold Naqsha diagrams
+		var s = Office.context.document.settings;
+		if (!s.get("Office.AutoShowTaskpaneWithDocument")) {
+			hasDiagrams().then(function (yes) {
+				if (!yes) return;
+				s.set("Office.AutoShowTaskpaneWithDocument", true);
+				s.saveAsync(function () {});
+			}, function () {});
+		}
 	});
 })();
