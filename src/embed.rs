@@ -11,6 +11,8 @@
 //!   show in the document; or `{naqsha: "error", message}`.
 //! - host → editor `{naqsha: "values", values: {tag: value, …}}`: live values (see `live.rs`);
 //!   `{naqsha: "clear"}` removes them.
+//! - host → editor `{naqsha: "theme", type: "dark" | "light"}`: follow the host's theme (on load
+//!   and whenever it changes). `&theme=dark|light` in the address sets it from the first frame.
 //!
 //! With `&view=1` the editor is a live view: the drawing only, no editing (the Node-RED add-on).
 //!
@@ -24,7 +26,7 @@ mod imp {
     use std::sync::{Mutex, OnceLock};
     use wasm_bindgen::JsCast;
 
-    enum Msg { Load(Option<String>), Export, Values(serde_json::Map<String, serde_json::Value>), Clear }
+    enum Msg { Load(Option<String>), Export, Values(serde_json::Map<String, serde_json::Value>), Clear, Theme(bool) }
 
     static ON: OnceLock<bool> = OnceLock::new();
     static INBOX: Mutex<Vec<Msg>> = Mutex::new(Vec::new());
@@ -49,6 +51,7 @@ mod imp {
                 Some("export") => Msg::Export,
                 Some("values") => match v["values"].as_object() { Some(o) => Msg::Values(o.clone()), None => return },
                 Some("clear") => Msg::Clear,
+                Some("theme") => match v["type"].as_str() { Some("dark") => Msg::Theme(true), Some("light") => Msg::Theme(false), _ => return },
                 _ => return,
             };
             if let Ok(mut h) = HOST.lock() { *h = Some(e.origin()); }
@@ -75,7 +78,14 @@ mod imp {
 
     pub fn frame(app: &mut App, ui: &egui::Ui) {
         if !active() { return; }
-        if !GREETED.load(Ordering::SeqCst) { app.viewer = crate::files::web::param("view").map_or(false, |v| v != "0"); }
+        if !GREETED.load(Ordering::SeqCst) {
+            app.viewer = crate::files::web::param("view").map_or(false, |v| v != "0");
+            match crate::files::web::param("theme").as_deref() {
+                Some("dark") => app.set.mode = crate::app::Mode::Dark,
+                Some("light") => app.set.mode = crate::app::Mode::Light,
+                _ => {}
+            }
+        }
         if !GREETED.swap(true, Ordering::SeqCst) {
             post(&serde_json::json!({ "naqsha": "ready", "version": env!("CARGO_PKG_VERSION") }));
         }
@@ -95,6 +105,11 @@ mod imp {
                     for (k, v) in o { app.live.insert(k, crate::live::parse(&v)); }
                 }
                 Msg::Clear => app.live.clear(),
+                Msg::Theme(dark) => {
+                    // the host's theme, for this session only (an embedded editor saves no settings)
+                    app.set.mode = if dark { crate::app::Mode::Dark } else { crate::app::Mode::Light };
+                    ui.ctx().request_repaint();
+                }
                 Msg::Export => export(app, ui),
             }
         }
