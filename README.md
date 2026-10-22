@@ -97,7 +97,7 @@ Make product flow along a line, data run along a link, a pump spin or an alarm b
 ### Node-RED
 
 - **Draw your flows.** Open a `flows.json`, or paste a flow copied from Node-RED. Every tab becomes a page, subflows open from the nodes that use them, and groups, link wires and configuration nodes come along. Useful for documenting what runs on the edge.
-- **Live drawings.** The [`node-red-contrib-naqsha`](nodered/) add-on shows a Naqsha drawing as a live view from your flows: levels and flows on the instruments, pumps running or stopped, alarms in red. Monitoring only; nothing is sent back.
+- **Live drawings.** The [`node-red-contrib-naqsha`](https://www.npmjs.com/package/node-red-contrib-naqsha) add-on ([source](nodered/)) shows a Naqsha drawing as a live view from your flows: levels and flows on the instruments, pumps running or stopped, alarms in red. Monitoring only; nothing is sent back. Install it from Node-RED's *Manage palette* (search for `naqsha`) or with `npm install node-red-contrib-naqsha`.
 
 <img src="docs/images/nodered-live.png" alt="A pump station P&ID served live by Node-RED, with pressure, flow and level values on the instruments and the duty pump's discharge line flowing" width="100%">
 
