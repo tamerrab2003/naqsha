@@ -138,53 +138,30 @@ pub fn layout(p: &Painter, text: &str, size: f32, bold: bool, italic: bool, colo
     layout_plain(p, text, size, bold, italic, color, wrap, halign)
 }
 
-/// Arabic (and other right-to-left) text: shape it, let egui find the line breaks, then lay out
-/// each row in visual order (see `rtl`). Rows are remembered so exports write the typed text.
+/// Arabic (and other right-to-left) text: see `rtl::visual_job`.
 #[allow(clippy::too_many_arguments)]
 fn layout_rtl(p: &Painter, text: &str, size: f32, bold: bool, italic: bool, color: Color32, wrap: f32, halign: Align) -> Arc<Galley> {
-    use crate::rtl;
-    let (shaped, map) = rtl::shape(text);
-    let wrapped = layout_plain(p, &shaped, size, bold, italic, color, wrap, Align::LEFT);
-    let sc: Vec<char> = shaped.chars().collect();
-    let mut rows: Vec<String> = vec![];
-    let mut k = 0; // index into the shaped characters
-    let mut para_start = 0;
-    for row in &wrapped.rows {
-        let n = row.glyphs.len();
-        let (a, b) = (k.min(sc.len()), (k + n).min(sc.len()));
-        // the paragraph this row belongs to decides its base direction
-        let para_end = sc[para_start..].iter().position(|c| *c == '\n').map(|q| para_start + q).unwrap_or(sc.len());
-        let para: String = sc[para_start..para_end].iter().collect();
-        let rtl_base = rtl::is_rtl_paragraph(&para);
-        let line: String = sc[a..b].iter().collect();
-        let trimmed = line.trim_end();
-        let vis = rtl::visual_line(trimmed, rtl_base);
-        if b > a && !trimmed.is_empty() {
-            let last = a + trimmed.chars().count() - 1;
-            let logical = &text[map[a].start..map[last].end];
-            rtl::remember(&vis, logical, rtl_base);
-        }
-        rows.push(vis);
-        k += n;
-        if row.ends_with_newline { k += 1; para_start = k.min(sc.len()); }
-    }
-    let joined = rows.join("\n");
-    let mut job = LayoutJob::default();
-    job.wrap.max_width = f32::INFINITY;
-    job.halign = halign;
-    crate::rtl::append(&mut job, &joined, TextFormat { font_id: font(size, bold), color, italics: italic, line_height: Some(size * 1.25), ..Default::default() });
+    let (shaped, _) = crate::rtl::shape(text);
+    let w = wrap_width(p, &shaped, size, bold, color, wrap);
+    let fmt = TextFormat { font_id: font(size, bold), color, italics: italic, line_height: Some(size * 1.25), ..Default::default() };
+    let job = crate::rtl::visual_job(text, fmt, w, halign, &mut |j| p.layout_job(j));
     p.layout_job(job)
+}
+
+/// The width to wrap at: never split a single word, let it overflow the box instead (Visio /
+/// draw.io behaviour). Chinese and Japanese break between any two characters; Thai is written
+/// without spaces.
+fn wrap_width(p: &Painter, text: &str, size: f32, bold: bool, color: Color32, wrap: f32) -> f32 {
+    let breakable = |c: char| c.is_whitespace() || crate::scripts::is_cjk(c) || crate::scripts::is_thai(c);
+    let longest = text.split(breakable).max_by_key(|w| w.chars().count()).unwrap_or("");
+    let lw = if longest.chars().count() > 3 { p.layout_no_wrap(longest.to_string(), font(size, bold), color).size().x + 1.0 } else { 0.0 };
+    wrap.max(lw).max(4.0)
 }
 
 #[allow(clippy::too_many_arguments)]
 fn layout_plain(p: &Painter, text: &str, size: f32, bold: bool, italic: bool, color: Color32, wrap: f32, halign: Align) -> Arc<Galley> {
     let mut job = LayoutJob::default();
-    // never split a single word: let it overflow the box instead (Visio / draw.io behaviour)
-    // (Chinese and Japanese break between any two characters; Thai is written without spaces)
-    let breakable = |c: char| c.is_whitespace() || crate::scripts::is_cjk(c) || crate::scripts::is_thai(c);
-    let longest = text.split(breakable).max_by_key(|w| w.chars().count()).unwrap_or("");
-    let lw = if longest.chars().count() > 3 { p.layout_no_wrap(longest.to_string(), font(size, bold), color).size().x + 1.0 } else { 0.0 };
-    job.wrap.max_width = wrap.max(lw).max(4.0);
+    job.wrap.max_width = wrap_width(p, text, size, bold, color, wrap);
     job.halign = halign;
     crate::rtl::append(&mut job, text, TextFormat { font_id: font(size, bold), color, italics: italic, line_height: Some(size * 1.25), ..Default::default() });
     p.layout_job(job)

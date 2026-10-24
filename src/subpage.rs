@@ -33,7 +33,7 @@ impl App {
         self.doc.pages.insert(self.pi + 1, Page { id, name: name.clone(), width: w, height: h, ..Default::default() });
         if let Some(s) = self.page_mut().shape_mut(shape) { s.link = Some(id); s.no_preview = false; }
         self.open_link(shape);
-        self.notify(format!("“{name}” opens from “{parent}” — use Back (⌘↑) to return"));
+        self.notify(crate::i18n::trf("“{name}” opens from “{parent}” — use Back (⌘↑) to return", &[("name", &name), ("parent", &parent)]));
     }
 
     /// Link a shape to an existing page (None removes the link).
@@ -170,7 +170,7 @@ impl App {
         let at = self.pi + 1;
         self.doc.pages.insert(at, np);
         self.sel = vec![sub_id];
-        self.notify(format!("Moved {} shape{} to “{name}”", ids.len(), if ids.len() == 1 { "" } else { "s" }));
+        self.notify(crate::i18n::trf("Moved {n} shape(s) to “{name}”", &[("n", &ids.len().to_string()), ("name", &name)]));
     }
 
     /// Links pointing at a page that is about to go away are cleared.

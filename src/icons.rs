@@ -3,6 +3,7 @@ use egui::{pos2, Color32, ColorImage, Painter, Rect, TextureHandle, TextureOptio
 use std::collections::HashMap;
 
 const ICONS: &[(&str, &str)] = &[
+    ("globe", r##"<circle cx="9" cy="9" r="7.2"/><path d="M1.8 9h14.4M9 1.8c-2.4 2.2-2.4 12.2 0 14.4M9 1.8c2.4 2.2 2.4 12.2 0 14.4"/>"##),
     ("star", r##"<path d="M9 1.8l2.1 4.6 5 .5-3.8 3.4 1.1 4.9L9 12.7l-4.4 2.5 1.1-4.9L1.9 6.9l5-.5z"/>"##),
     ("sheet", r##"<rect x="1.8" y="2.5" width="14.4" height="13" rx="1.2"/><path d="M8.5 11.5h7.7M8.5 11.5v4M12.3 11.5v4"/>"##),
     ("schedule", r##"<rect x="2" y="2.5" width="14" height="13" rx="1.2"/><path d="M2 6.3h14M2 10h14M6.5 2.5v13"/>"##),

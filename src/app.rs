@@ -1,4 +1,6 @@
 //! Application state and document commands.
+#[allow(unused_imports)]
+use crate::i18n::{t, tr, trf, w};
 use crate::geom;
 use crate::library;
 use crate::model::*;
@@ -38,6 +40,8 @@ pub struct Settings {
     pub pro: ProLicense,
     /// Play animations in the editor (off: they stand still at their first frame).
     pub animate: bool,
+    /// Interface language (a code from i18n::LANGS; empty: the system's).
+    pub lang: String,
 }
 
 /// A Naqsha Pro licence as last confirmed by the store, and the trial. Plain data: the logic that
@@ -67,7 +71,7 @@ pub struct ProLicense {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { mode: Mode::System, grid: true, rulers: true, snap: true, guides: true, show_left: true, show_right: true, grid_size: 20.0, recent: vec![], routing: Routing::Orthogonal, stencil_dirs: vec![], layout: "tb".into(), pro: ProLicense::default(), animate: true }
+        Settings { mode: Mode::System, grid: true, rulers: true, snap: true, guides: true, show_left: true, show_right: true, grid_size: 20.0, recent: vec![], routing: Routing::Orthogonal, stencil_dirs: vec![], layout: "tb".into(), pro: ProLicense::default(), animate: true, lang: String::new() }
     }
 }
 
@@ -295,7 +299,7 @@ impl App {
         let mut s = match crate::pro::symbol(kind) {
             // an engineering symbol from Naqsha Pro: it brings its own geometry, tag and data
             Some(proto) => Shape { id, layer, text: crate::pro::next_tag(self, &proto), ..proto },
-            None => Shape { id, kind: kind.into(), w: d.w, h: d.h, text: d.text0.into(), style: library::default_style(kind), layer, ..Default::default() },
+            None => Shape { id, kind: kind.into(), w: d.w, h: d.h, text: tr(d.text0).into(), style: library::default_style(kind), layer, ..Default::default() },
         };
         s.x = center.x - s.w / 2.0;
         s.y = center.y - s.h / 2.0;
@@ -320,7 +324,7 @@ impl App {
     /// Insert an icon from a stencil folder as a picture with its name underneath.
     pub fn add_user_icon(&mut self, path: &std::path::Path, name: &str, center: Pos2) -> Id {
         use base64::Engine;
-        let Some((png, aspect)) = crate::userlib::to_png(path, 320) else { self.notify(format!("Couldn't read {}", path.display())); return 0 };
+        let Some((png, aspect)) = crate::userlib::to_png(path, 320) else { self.notify(trf("Couldn't read {file}", &[("file", &path.display().to_string())])); return 0 };
         self.checkpoint();
         let mut s = self.make_shape("image", center);
         let side = 64.0;
@@ -343,9 +347,9 @@ impl App {
 
     pub fn add_stencil_folder(&mut self) {
         #[cfg(target_arch = "wasm32")]
-        { self.notify("Stencil folders need the desktop app"); return; }
+        { self.notify(tr("Stencil folders need the desktop app")); return; }
         #[cfg(not(target_arch = "wasm32"))]
-        let Some(dir) = rfd::FileDialog::new().set_title("Choose a folder of SVG icons").pick_folder() else { return };
+        let Some(dir) = rfd::FileDialog::new().set_title(tr("Choose a folder of SVG icons")).pick_folder() else { return };
         #[cfg(not(target_arch = "wasm32"))]
         self.add_stencil_dir(dir);
     }
@@ -358,10 +362,10 @@ impl App {
         let n = self.user_lib.iter().map(|g| g.icons.len()).sum::<usize>() - before.min(self.user_lib.iter().map(|g| g.icons.len()).sum::<usize>());
         if n == 0 && !self.user_lib.iter().any(|g| g.root == d) {
             self.set.stencil_dirs.retain(|x| x != &d);
-            self.notify("No SVG icons found in that folder");
+            self.notify(tr("No SVG icons found in that folder"));
         } else {
             let groups = self.user_lib.iter().filter(|g| g.root == d).count();
-            self.notify(format!("Added {n} icons in {groups} group(s)"));
+            self.notify(trf("Added {n} icons in {groups} group(s)", &[("n", &n.to_string()), ("groups", &groups.to_string())]));
             self.set.show_left = true;
         }
     }
@@ -386,7 +390,7 @@ impl App {
         n.id = self.doc.new_id();
         n.group = None;
         n.data = s.data.clone();
-        n.text = library::def(&s.kind).text0.into();
+        n.text = tr(library::def(&s.kind).text0).into();
         n.x += dir.x * (s.w + gap);
         n.y += dir.y * (s.h + gap);
         let nid = n.id;
@@ -669,7 +673,7 @@ impl App {
         let id = self.doc.new_id();
         let n = self.doc.pages.len() + 1;
         let (w, h) = (self.page().width, self.page().height);
-        self.doc.pages.push(Page { id, name: format!("Page-{n}"), width: w, height: h, ..Default::default() });
+        self.doc.pages.push(Page { id, name: trf("Page-{n}", &[("n", &n.to_string())]), width: w, height: h, ..Default::default() });
         self.go_page(self.doc.pages.len() - 1);
     }
     pub fn dup_page(&mut self) {
@@ -688,7 +692,7 @@ impl App {
         self.go_page(self.pi + 1);
     }
     pub fn del_page(&mut self) {
-        if self.doc.pages.len() < 2 { self.notify("A diagram needs at least one page"); return; }
+        if self.doc.pages.len() < 2 { self.notify(tr("A diagram needs at least one page")); return; }
         self.checkpoint();
         let gone = self.page().id;
         self.unlink_page(gone);
@@ -735,7 +739,7 @@ impl App {
         let sel = self.sel.clone();
         let n = crate::layout::tidy_connectors(self.page_mut(), &sel);
         self.push_before(before);
-        self.notify(if n == 0 { "No connectors to tidy".to_string() } else { format!("Tidied {n} connector(s)") });
+        self.notify(if n == 0 { tr("No connectors to tidy").to_string() } else { trf("Tidied {n} connector(s)", &[("n", &n.to_string())]) });
     }
 
     /// The layout used last ("Auto Arrange" repeats it).
@@ -745,7 +749,7 @@ impl App {
 
     // ------------------------------------------------------------- files
     pub fn title(&self) -> String {
-        let name = self.path.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().to_string()).or_else(|| self.imported_name.clone()).unwrap_or_else(|| "Untitled".into());
+        let name = self.path.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().to_string()).or_else(|| self.imported_name.clone()).unwrap_or_else(|| tr("Untitled").into());
         name
     }
     pub fn add_recent(&mut self, p: &std::path::Path) {
@@ -790,16 +794,16 @@ impl App {
                     self.imported_name = fname.file_stem().map(|s| s.to_string_lossy().to_string());
                     self.path = None;
                     let ext = fname.extension().map(|e| e.to_string_lossy().to_uppercase()).unwrap_or_default();
-                    let mut msg = format!("Imported {ext} — {} page(s)", self.doc.pages.len());
+                    let mut msg = trf("Imported {format} — {n} page(s)", &[("format", &ext), ("n", &self.doc.pages.len().to_string())]);
                     for n in notes { msg.push_str(" · "); msg.push_str(&n); }
                     self.notify(msg);
                 }
             }
-            Err(e) => self.notify(format!("Couldn't open file: {e}")),
+            Err(e) => self.notify(trf("Couldn't open file: {error}", &[("error", &e.to_string())])),
         }
     }
     pub fn open_dialog(&mut self) {
-        self.pick_file(crate::files::Purpose::Open, "Open", crate::files::OPEN_FILTERS);
+        self.pick_file(crate::files::Purpose::Open, tr("Open"), crate::files::OPEN_FILTERS);
     }
 
     /// Use the files picked since the last frame.
@@ -813,7 +817,7 @@ impl App {
                 },
                 Purpose::Script => self.insert_script(&f.name, f.path.as_deref(), f.bytes),
                 Purpose::Pipeline => self.insert_pipeline(&f.name, f.bytes),
-                Purpose::Flows => match f.bytes { Ok(b) => self.insert_flows(&String::from_utf8_lossy(&b)), Err(e) => self.notify(format!("Couldn't read the file: {e}")) },
+                Purpose::Flows => match f.bytes { Ok(b) => self.insert_flows(&String::from_utf8_lossy(&b)), Err(e) => self.notify(trf("Couldn't read the file: {error}", &[("error", &e.to_string())])) },
                 Purpose::Image => self.insert_image_bytes(f.bytes),
                 Purpose::Ext(name) => crate::pro::picked(self, name, f),
             }
@@ -829,7 +833,7 @@ impl App {
                 let title = std::path::Path::new(name).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
                 self.spawn.push(Spawn::Doc(doc, title));
             }
-            Err(e) => self.notify(format!("Couldn't open file: {e}")),
+            Err(e) => self.notify(trf("Couldn't open file: {error}", &[("error", &e.to_string())])),
         }
     }
 
@@ -841,7 +845,7 @@ impl App {
     /// Open a file here if this window is empty, otherwise in a new window.
     pub fn open_or_spawn(&mut self, p: PathBuf) {
         // already open in this window: just say so
-        if self.path.as_ref() == Some(&p) { self.notify("That diagram is already open in this window"); return; }
+        if self.path.as_ref() == Some(&p) { self.notify(tr("That diagram is already open in this window")); return; }
         if self.is_pristine() { self.load_path(p); } else { self.spawn.push(Spawn::Path(p)); }
     }
 
@@ -870,17 +874,17 @@ impl App {
 
     /// Save the current diagram into the user's templates folder.
     pub fn save_as_template(&mut self) {
-        if crate::files::WEB { self.notify("Saving templates needs the desktop app"); return; }
-        let Some(dir) = crate::templates::user_dir() else { self.notify("No templates folder available"); return };
+        if crate::files::WEB { self.notify(tr("Saving templates needs the desktop app")); return; }
+        let Some(dir) = crate::templates::user_dir() else { self.notify(tr("No templates folder available")); return };
         let _ = std::fs::create_dir_all(&dir);
         #[cfg(target_arch = "wasm32")]
         let p = dir.join(format!("{}.nqs", self.title()));
         #[cfg(not(target_arch = "wasm32"))]
-        let Some(p) = rfd::FileDialog::new().set_title("Save as Template").set_directory(&dir).add_filter("Naqsha template", &["nqs"]).set_file_name(&format!("{}.nqs", self.title())).save_file() else { return };
+        let Some(p) = rfd::FileDialog::new().set_title(tr("Save as Template")).set_directory(&dir).add_filter("Naqsha template", &["nqs"]).set_file_name(&format!("{}.nqs", self.title())).save_file() else { return };
         let p = if p.extension().is_none() { p.with_extension("nqs") } else { p };
         match write_foreign(&self.doc, &p) {
-            Ok(_) => { self.gallery.entries = None; self.notify(format!("Saved template “{}” — find it under New › My Templates", p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default())); }
-            Err(e) => self.notify(format!("Couldn't save the template: {e}")),
+            Ok(_) => { self.gallery.entries = None; self.notify(trf("Saved template “{name}” — find it under New › My Templates", &[("name", &p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default())])); }
+            Err(e) => self.notify(trf("Couldn't save the template: {error}", &[("error", &e.to_string())])),
         }
     }
     /// Returns true if saved. Save As can also write Visio (.vsdx) or draw.io files.
@@ -894,15 +898,15 @@ impl App {
             let _ = save_as;
             let name = format!("{}.nqs", self.title());
             return match serde_json::to_string_pretty(&self.doc).map_err(|e| e.to_string()).and_then(|t| crate::files::download(&name, t.as_bytes(), "application/json")) {
-                Ok(_) => { self.dirty = false; self.imported_name = Some(self.title()); self.notify(format!("Downloaded {name}")); true }
-                Err(e) => { self.notify(format!("Save failed: {e}")); false }
+                Ok(_) => { self.dirty = false; self.imported_name = Some(self.title()); self.notify(trf("Downloaded {name}", &[("name", &name)])); true }
+                Err(e) => { self.notify(trf("Save failed: {error}", &[("error", &e.to_string())])); false }
             };
         }
         #[allow(unreachable_code)]
         let path = if save_as || self.path.is_none() {
             let name = format!("{}.nqs", self.title());
             #[cfg(not(target_arch = "wasm32"))]
-            match crate::files::save_dialog("Save", &name, &[("Naqsha diagram", &["nqs"]), ("Microsoft Visio drawing", &["vsdx"]), ("draw.io diagram", &["drawio"])])
+            match crate::files::save_dialog(tr("Save"), &name, &[("Naqsha diagram", &["nqs"]), ("Microsoft Visio drawing", &["vsdx"]), ("draw.io diagram", &["drawio"])])
             { Some(p) => p, None => return false }
             #[cfg(target_arch = "wasm32")]
             PathBuf::from(name)
@@ -912,13 +916,13 @@ impl App {
         if ext == "vsdx" || ext == "drawio" {
             // foreign formats are written as exports; the working document stays as it is
             return match write_foreign(&self.doc, &path) {
-                Ok(_) => { self.notify(format!("Saved a copy as {}", path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default())); true }
-                Err(e) => { self.notify(format!("Save failed: {e}")); false }
+                Ok(_) => { self.notify(trf("Saved a copy as {name}", &[("name", &path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default())])); true }
+                Err(e) => { self.notify(trf("Save failed: {error}", &[("error", &e.to_string())])); false }
             };
         }
         match serde_json::to_string_pretty(&self.doc).map_err(|e| e.to_string()).and_then(|t| std::fs::write(&path, t).map_err(|e| e.to_string())) {
-            Ok(_) => { self.dirty = false; self.add_recent(&path); self.path = Some(path); self.imported_name = None; self.notify("Saved"); true }
-            Err(e) => { self.notify(format!("Save failed: {e}")); false }
+            Ok(_) => { self.dirty = false; self.add_recent(&path); self.path = Some(path); self.imported_name = None; self.notify(tr("Saved")); true }
+            Err(e) => { self.notify(trf("Save failed: {error}", &[("error", &e.to_string())])); false }
         }
     }
 
@@ -936,12 +940,12 @@ impl App {
 
     /// Insert a shell script (or any text file) as a script block showing its code.
     pub fn insert_script_file(&mut self) {
-        self.pick_file(crate::files::Purpose::Script, "Insert Script File", &[]);
+        self.pick_file(crate::files::Purpose::Script, tr("Insert Script File"), &[]);
     }
     fn insert_script(&mut self, name: &str, path: Option<&std::path::Path>, bytes: Result<Vec<u8>, String>) {
-        let Ok(bytes) = bytes else { self.notify("Couldn't read the file"); return };
+        let Ok(bytes) = bytes else { self.notify(tr("Couldn't read the file")); return };
         let text = String::from_utf8_lossy(&bytes).replace("\r\n", "\n");
-        if text.contains('\0') { self.notify("That doesn't look like a text file"); return; }
+        if text.contains('\0') { self.notify(tr("That doesn't look like a text file")); return; }
         let c = self.view_center_world();
         self.checkpoint();
         let mut s = self.make_shape("p_script", c);
@@ -961,10 +965,10 @@ impl App {
 
     /// Read a CI/CD pipeline definition and add its diagram pages to this document.
     pub fn insert_pipeline_file(&mut self) {
-        self.pick_file(crate::files::Purpose::Pipeline, "Insert Pipeline (GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket, Jenkinsfile)", &[]);
+        self.pick_file(crate::files::Purpose::Pipeline, tr("Insert Pipeline (GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket, Jenkinsfile)"), &[]);
     }
     fn insert_pipeline(&mut self, name: &str, bytes: Result<Vec<u8>, String>) {
-        let text = match bytes { Ok(b) => String::from_utf8_lossy(&b).to_string(), Err(e) => { self.notify(format!("Couldn't read the file: {e}")); return } };
+        let text = match bytes { Ok(b) => String::from_utf8_lossy(&b).to_string(), Err(e) => { self.notify(trf("Couldn't read the file: {error}", &[("error", &e.to_string())])); return } };
         let name = if std::path::Path::new(name).extension().is_none() { "Jenkinsfile".to_string() } else { name.to_string() };
         match crate::formats::pipeline::import(&name, &text) {
             Ok(imp) => {
@@ -973,13 +977,13 @@ impl App {
                 self.go_page(at);
                 if let Some(n) = imp.notes.first() { self.notify(n.clone()); }
             }
-            Err(e) => self.notify(format!("Couldn't read the pipeline: {e}")),
+            Err(e) => self.notify(trf("Couldn't read the pipeline: {error}", &[("error", &e.to_string())])),
         }
     }
 
     /// Draw Node-RED flows (an export or flows.json) as new pages of this document.
     pub fn insert_flows_file(&mut self) {
-        self.pick_file(crate::files::Purpose::Flows, "Insert Node-RED Flows (flows.json or an export)", &[("Node-RED flows", &["json"])]);
+        self.pick_file(crate::files::Purpose::Flows, tr("Insert Node-RED Flows (flows.json or an export)"), &[("Node-RED flows", &["json"])]);
     }
     fn insert_flows(&mut self, text: &str) {
         match crate::formats::nodered::import(text) {
@@ -989,16 +993,16 @@ impl App {
                 self.go_page(at);
                 if let Some(n) = imp.notes.first() { self.notify(n.clone()); }
             }
-            Err(e) => self.notify(format!("Couldn't read the flows: {e}")),
+            Err(e) => self.notify(trf("Couldn't read the flows: {error}", &[("error", &e.to_string())])),
         }
     }
 
     pub fn insert_image(&mut self) {
-        self.pick_file(crate::files::Purpose::Image, "Insert Picture", &[("Image", &["png", "jpg", "jpeg"])]);
+        self.pick_file(crate::files::Purpose::Image, tr("Insert Picture"), &[("Image", &["png", "jpg", "jpeg"])]);
     }
     fn insert_image_bytes(&mut self, bytes: Result<Vec<u8>, String>) {
-        let Ok(bytes) = bytes else { self.notify("Couldn't read image"); return };
-        let Ok(img) = image::load_from_memory(&bytes) else { self.notify("Unsupported image"); return };
+        let Ok(bytes) = bytes else { self.notify(tr("Couldn't read image")); return };
+        let Ok(img) = image::load_from_memory(&bytes) else { self.notify(tr("Unsupported image")); return };
         use base64::Engine;
         let mut png = vec![];
         if img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).is_err() { return; }

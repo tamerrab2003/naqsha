@@ -1,4 +1,6 @@
 //! The drawing canvas: rendering, hit-testing and all pointer interaction.
+#[allow(unused_imports)]
+use crate::i18n::{t, tr, trf, w};
 use crate::app::*;
 use crate::geom::{self, rot};
 use crate::library;
@@ -350,7 +352,7 @@ fn live_badges(app: &App, painter: &egui::Painter, v: &View) {
     let pal = app.pal;
     let red = Color32::from_rgb(220, 38, 38);
     let badge = |at: Pos2, text: &str, alarm: bool| {
-        let g = painter.layout_no_wrap(text.to_string(), FontId::proportional(12.0), if alarm { Color32::WHITE } else { pal.text });
+        let g = crate::i18n::galley(&painter, &text, FontId::proportional(12.0), if alarm { Color32::WHITE } else { pal.text });
         let r = Rect::from_center_size(at, g.size() + vec2(12.0, 6.0));
         painter.rect_filled(r.translate(vec2(0.0, 1.0)), 6.0, Color32::from_black_alpha(30));
         painter.rect_filled(r, 6.0, if alarm { red } else { pal.panel });
@@ -389,13 +391,13 @@ fn breadcrumb_bar(app: &mut App, ui: &mut Ui, crect: Rect) {
         egui::Frame::new().fill(pal.panel).stroke(Stroke::new(1.0, pal.border)).corner_radius(8.0).inner_margin(egui::Margin::symmetric(6, 4)).shadow(egui::epaint::Shadow { offset: [0, 2], blur: 8, spread: 0, color: Color32::from_black_alpha(if pal.dark { 70 } else { 22 }) }).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                let b = ui.add(egui::Button::new(egui::RichText::new("‹  Back").color(Color32::WHITE).strong()).fill(pal.accent).corner_radius(6.0)).on_hover_text(crate::platform::keys("Back to the parent page (⌘↑)"));
+                let b = ui.add(egui::Button::new(crate::i18n::rich(tr("‹  Back"), 12.5, Some(Color32::WHITE), true)).fill(pal.accent).corner_radius(6.0)).on_hover_text(w(crate::platform::keys(tr("Back to the parent page (⌘↑)"))));
                 if b.clicked() { back = true; }
                 ui.add_space(4.0);
                 for (i, sid) in &crumbs {
                     let name = app.doc.pages[*i].name.clone();
-                    if ui.add(egui::Button::new(egui::RichText::new(name).color(pal.muted)).frame(false)).on_hover_text("Go to this page").clicked() { go = Some((*i, *sid)); }
-                    ui.label(egui::RichText::new("›").color(pal.muted));
+                    if ui.add(egui::Button::new(egui::RichText::new(name).color(pal.muted)).frame(false)).on_hover_text(t("Go to this page")).clicked() { go = Some((*i, *sid)); }
+                    ui.label(crate::i18n::rich(tr("›"), 12.5, Some(pal.muted), false));
                 }
                 ui.label(egui::RichText::new(app.page().name.clone()).strong().color(pal.text));
             });
@@ -901,7 +903,7 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
         painter.line_segment([c + vec2(k, -k), c + vec2(-0.5, -k)], st);
         painter.line_segment([c + vec2(k, -k), c + vec2(k, 0.5)], st);
         if hot {
-            let g = painter.layout_no_wrap(crate::platform::keys(&format!("Open “{}”  ⌘↓", target.name)), FontId::proportional(11.5), pal.text);
+            let g = crate::i18n::galley(&painter, &crate::platform::keys(&trf("Open “{name}”  ⌘↓", &[("name", &target.name)])), FontId::proportional(11.5), pal.text);
             let r = Rect::from_min_size(c + vec2(13.0, -g.size().y / 2.0 - 4.0), g.size() + vec2(14.0, 8.0));
             painter.rect_filled(r.translate(vec2(0.0, 1.5)), 6.0, Color32::from_black_alpha(30));
             painter.rect_filled(r, 6.0, pal.panel);
@@ -1046,8 +1048,8 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
         if let Some(p) = ui.input(|i| i.pointer.hover_pos()) { crate::icons::get().paint(painter, "painter", Rect::from_min_size(p + vec2(14.0, 14.0), vec2(16.0, 16.0)), pal.accent); }
     }
     if page.shapes.is_empty() && page.conns.is_empty() {
-        painter.text(crect.center() - vec2(0.0, 14.0), Align2::CENTER_CENTER, "Drag shapes from the left panel onto the page", FontId::proportional(15.0), pal.faint);
-        painter.text(crect.center() + vec2(0.0, 10.0), Align2::CENTER_CENTER, "or click a shape to drop it in the centre", FontId::proportional(12.5), pal.faint);
+        crate::i18n::text(&painter, crect.center() - vec2(0.0, 14.0), Align2::CENTER_CENTER, tr("Drag shapes from the left panel onto the page"), FontId::proportional(15.0), pal.faint);
+        crate::i18n::text(&painter, crect.center() + vec2(0.0, 10.0), Align2::CENTER_CENTER, tr("or click a shape to drop it in the centre"), FontId::proportional(12.5), pal.faint);
     }
 }
 

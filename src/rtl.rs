@@ -185,15 +185,60 @@ pub fn append(job: &mut egui::text::LayoutJob, text: &str, fmt: egui::TextFormat
         job.text.push_str(t);
         job.sections.push(egui::text::LayoutSection { leading_space: 0.0, byte_range: egui::text::ByteIndex(a)..egui::text::ByteIndex(job.text.len()), format: fmt.clone() });
     };
+    // a letter and the marks after it (harakat) stay together, so the marks sit on it
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
     let mut start = 0;
-    for (i, c) in text.char_indices() {
+    let mut k = 0;
+    while k < chars.len() {
+        let (i, c) = chars[k];
+        k += 1;
         if !rtl_script(c) { continue; }
         if start < i { push(job, &text[start..i]); }
-        let e = i + c.len_utf8();
+        while k < chars.len() && joining(chars[k].1) == Join::Transparent { k += 1; }
+        let e = chars.get(k).map(|x| x.0).unwrap_or(text.len());
         push(job, &text[i..e]);
         start = e;
     }
     if start < text.len() { push(job, &text[start..]); }
+}
+
+/// A layout job that draws `text` (as typed) correctly when it holds right-to-left letters:
+/// shaped, wrapped at `wrap` (with `lay`, which lays a job out), each row in visual order.
+/// Rows are remembered so exports can write the typed text.
+pub fn visual_job(text: &str, fmt: egui::TextFormat, wrap: f32, halign: egui::Align, lay: &mut dyn FnMut(egui::text::LayoutJob) -> std::sync::Arc<egui::Galley>) -> egui::text::LayoutJob {
+    use egui::text::LayoutJob;
+    let (shaped, map) = shape(text);
+    let mut wj = LayoutJob::default();
+    wj.wrap.max_width = wrap;
+    append(&mut wj, &shaped, fmt.clone());
+    let wrapped = lay(wj);
+    let sc: Vec<char> = shaped.chars().collect();
+    let mut rows: Vec<String> = vec![];
+    let mut k = 0; // index into the shaped characters
+    let mut para_start = 0;
+    for row in &wrapped.rows {
+        let n = row.glyphs.len();
+        let (a, b) = (k.min(sc.len()), (k + n).min(sc.len()));
+        // the paragraph this row belongs to decides its base direction
+        let para_end = sc[para_start..].iter().position(|c| *c == '\n').map(|q| para_start + q).unwrap_or(sc.len());
+        let para: String = sc[para_start..para_end].iter().collect();
+        let rtl_base = is_rtl_paragraph(&para);
+        let line: String = sc[a..b].iter().collect();
+        let trimmed = line.trim_end();
+        let vis = visual_line(trimmed, rtl_base);
+        if b > a && !trimmed.is_empty() {
+            let last = a + trimmed.chars().count() - 1;
+            remember(&vis, &text[map[a].start..map[last].end], rtl_base);
+        }
+        rows.push(vis);
+        k += n;
+        if row.ends_with_newline { k += 1; para_start = k.min(sc.len()); }
+    }
+    let mut job = LayoutJob::default();
+    job.wrap.max_width = f32::INFINITY;
+    job.halign = halign;
+    append(&mut job, &rows.join("\n"), fmt);
+    job
 }
 
 thread_local! {

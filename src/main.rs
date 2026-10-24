@@ -11,6 +11,7 @@ mod export;
 mod files;
 mod formats;
 mod geom;
+mod i18n;
 mod icons;
 mod layout;
 mod library;
@@ -331,7 +332,12 @@ fn setup(cc: &eframe::CreationContext<'_>, start: Start) -> shell::Shell {
         s.spacing.interact_size.y = 24.0;
         s.interaction.tooltip_delay = 0.4;
     });
-    let set: Settings = cc.storage.and_then(|s| eframe::get_value(s, "settings")).unwrap_or_default();
+    #[allow(unused_mut)]
+    let mut set: Settings = cc.storage.and_then(|s| eframe::get_value(s, "settings")).unwrap_or_default();
+    // the browser version takes the language from the page address too (…/app/?lang=ar)
+    #[cfg(target_arch = "wasm32")]
+    if let Some(l) = files::web::param("lang") { set.lang = i18n::pick(&l).to_string(); }
+    i18n::set(&set.lang);
     // unsaved untitled diagrams from last session (one per window)
     let mut recovered: Vec<model::Document> = if matches!(start, Start::Nothing) {
         cc.storage.and_then(|s| eframe::get_value::<Vec<model::Document>>(s, "recovery_all"))

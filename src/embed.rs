@@ -98,7 +98,7 @@ mod imp {
                         app.offer_gallery = false;
                         if matches!(app.modal, Some(crate::app::Modal::NewDiagram)) { app.modal = None; }
                     }
-                    Err(e) => app.notify(format!("Couldn't read this diagram: {e}")),
+                    Err(e) => app.notify(crate::i18n::trf("Couldn't read this diagram: {error}", &[("error", &e.to_string())])),
                 },
                 Msg::Load(None) => {}
                 Msg::Values(o) => {
@@ -133,7 +133,7 @@ mod imp {
         });
         match reply {
             Ok(v) => { post(&v); app.dirty = false; }
-            Err(e) => { app.notify(format!("Couldn't insert the diagram: {e}")); post(&serde_json::json!({ "naqsha": "error", "message": e })); }
+            Err(e) => { app.notify(crate::i18n::trf("Couldn't insert the diagram: {error}", &[("error", &e.to_string())])); post(&serde_json::json!({ "naqsha": "error", "message": e })); }
         }
     }
 }
