@@ -188,6 +188,17 @@ pub fn fonts() -> FontDefinitions {
         f.font_data.insert("system-bold".into(), Arc::new(FontData::from_owned(bytes)));
         bold_list.push("system-bold".to_string());
     }
+    // Arabic: the system UI fonts (San Francisco, Segoe UI) don't map Arabic presentation forms,
+    // which is what the canvas draws Arabic with (see rtl.rs); DejaVu Sans does
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        f.font_data.insert("arabic".into(), Arc::new(FontData::from_static(include_bytes!("../web/fonts/DejaVuSans.ttf"))));
+        f.font_data.insert("arabic-bold".into(), Arc::new(FontData::from_static(include_bytes!("../web/fonts/DejaVuSans-Bold.ttf"))));
+        let prop = f.families.entry(FontFamily::Proportional).or_default();
+        let at = prop.iter().position(|n| n == "system").map(|i| i + 1).unwrap_or(0);
+        prop.insert(at, "arabic".into());
+        bold_list.push("arabic-bold".into());
+    }
     bold_list.extend(f.families.get(&FontFamily::Proportional).cloned().unwrap_or_default());
     f.families.insert(FontFamily::Name("bold".into()), bold_list);
     f

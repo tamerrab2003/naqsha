@@ -2071,6 +2071,8 @@ dependencies = [
  "serde",
  "serde_json",
  "svg2pdf",
+ "unicode-bidi",
+ "unicode-bidi-mirroring",
  "ureq",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -28,6 +28,7 @@ mod pro;
 mod model;
 mod render;
 mod route;
+mod rtl;
 mod shell;
 mod subpage;
 mod templates;

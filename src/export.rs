@@ -38,8 +38,20 @@ fn eshape_svg(out: &mut String, sh: &EShape) {
                 let c = t.override_text_color.unwrap_or(f.color);
                 let bold = matches!(&f.font_id.family, egui::FontFamily::Name(n) if n.as_ref() == "bold");
                 let family = if f.font_id.family == egui::FontFamily::Monospace { "Menlo, Consolas, 'DejaVu Sans Mono', monospace" } else { "-apple-system, Helvetica, Arial, sans-serif" };
-                let _ = write!(out, "<text x=\"{:.2}\" y=\"{:.2}\" font-family=\"{family}\" font-size=\"{:.2}\" fill=\"{}\"{}{} xml:space=\"preserve\">{}</text>",
-                    row.pos.x + g0.pos.x, row.pos.y + g0.pos.y, f.font_id.size, col(c),
+                // Arabic etc.: the screen row is shaped and in visual order; write what was typed and
+                // let the renderer shape it. A right-to-left row is anchored at its right edge, and
+                // embedded right-to-left (RLE … PDF) so every renderer orders it the same way.
+                let (x, anchor, text) = match crate::rtl::logical(&text) {
+                    Some((typed, rtl)) => {
+                        // anchored as the row is aligned, so a different export font still lines up
+                        let (l, r) = (row.pos.x + g0.pos.x, row.pos.x + row.glyphs.last().map(|g| g.max_x()).unwrap_or(g0.pos.x));
+                        let (x, a) = match t.galley.job.halign { egui::Align::Min => (l, ""), egui::Align::Center => ((l + r) / 2.0, " text-anchor=\"middle\""), egui::Align::Max => (r, " text-anchor=\"end\"") };
+                        (x, a, if rtl { format!("\u{202B}{typed}\u{202C}") } else { typed })
+                    }
+                    None => (row.pos.x + g0.pos.x, "", text),
+                };
+                let _ = write!(out, "<text x=\"{:.2}\" y=\"{:.2}\"{anchor} font-family=\"{family}\" font-size=\"{:.2}\" fill=\"{}\"{}{} xml:space=\"preserve\">{}</text>",
+                    x, row.pos.y + g0.pos.y, f.font_id.size, col(c),
                     if bold { " font-weight=\"bold\"" } else { "" }, if f.italics { " font-style=\"italic\"" } else { "" }, esc(&text));
             }
             out.push_str("</g>");

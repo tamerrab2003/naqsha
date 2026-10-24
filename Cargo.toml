@@ -25,6 +25,9 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 roxmltree = "0.21"
 flate2 = "1"
 yaml-rust2 = "0.10"
+# Arabic and other right-to-left text on the canvas (also used by resvg)
+unicode-bidi = "0.3"
+unicode-bidi-mirroring = "0.4"
 
 # Naqsha Pro (desktop and browser): Excel schedules and product lists, multi-sheet PDF sets
 rust_xlsxwriter = { version = "0.99", optional = true }

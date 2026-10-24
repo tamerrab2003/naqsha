@@ -134,13 +134,57 @@ fn layout_code(p: &Painter, text: &str, size: f32, color: Color32, bx: Rect) -> 
 }
 
 pub fn layout(p: &Painter, text: &str, size: f32, bold: bool, italic: bool, color: Color32, wrap: f32, halign: Align) -> Arc<Galley> {
+    if crate::rtl::has_rtl(text) { return layout_rtl(p, text, size, bold, italic, color, wrap, halign); }
+    layout_plain(p, text, size, bold, italic, color, wrap, halign)
+}
+
+/// Arabic (and other right-to-left) text: shape it, let egui find the line breaks, then lay out
+/// each row in visual order (see `rtl`). Rows are remembered so exports write the typed text.
+#[allow(clippy::too_many_arguments)]
+fn layout_rtl(p: &Painter, text: &str, size: f32, bold: bool, italic: bool, color: Color32, wrap: f32, halign: Align) -> Arc<Galley> {
+    use crate::rtl;
+    let (shaped, map) = rtl::shape(text);
+    let wrapped = layout_plain(p, &shaped, size, bold, italic, color, wrap, Align::LEFT);
+    let sc: Vec<char> = shaped.chars().collect();
+    let mut rows: Vec<String> = vec![];
+    let mut k = 0; // index into the shaped characters
+    let mut para_start = 0;
+    for row in &wrapped.rows {
+        let n = row.glyphs.len();
+        let (a, b) = (k.min(sc.len()), (k + n).min(sc.len()));
+        // the paragraph this row belongs to decides its base direction
+        let para_end = sc[para_start..].iter().position(|c| *c == '\n').map(|q| para_start + q).unwrap_or(sc.len());
+        let para: String = sc[para_start..para_end].iter().collect();
+        let rtl_base = rtl::is_rtl_paragraph(&para);
+        let line: String = sc[a..b].iter().collect();
+        let trimmed = line.trim_end();
+        let vis = rtl::visual_line(trimmed, rtl_base);
+        if b > a && !trimmed.is_empty() {
+            let last = a + trimmed.chars().count() - 1;
+            let logical = &text[map[a].start..map[last].end];
+            rtl::remember(&vis, logical, rtl_base);
+        }
+        rows.push(vis);
+        k += n;
+        if row.ends_with_newline { k += 1; para_start = k.min(sc.len()); }
+    }
+    let joined = rows.join("\n");
+    let mut job = LayoutJob::default();
+    job.wrap.max_width = f32::INFINITY;
+    job.halign = halign;
+    crate::rtl::append(&mut job, &joined, TextFormat { font_id: font(size, bold), color, italics: italic, line_height: Some(size * 1.25), ..Default::default() });
+    p.layout_job(job)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn layout_plain(p: &Painter, text: &str, size: f32, bold: bool, italic: bool, color: Color32, wrap: f32, halign: Align) -> Arc<Galley> {
     let mut job = LayoutJob::default();
     // never split a single word: let it overflow the box instead (Visio / draw.io behaviour)
     let longest = text.split_whitespace().max_by_key(|w| w.chars().count()).unwrap_or("");
     let lw = if longest.chars().count() > 3 { p.layout_no_wrap(longest.to_string(), font(size, bold), color).size().x + 1.0 } else { 0.0 };
     job.wrap.max_width = wrap.max(lw).max(4.0);
     job.halign = halign;
-    job.append(text, 0.0, TextFormat { font_id: font(size, bold), color, italics: italic, line_height: Some(size * 1.25), ..Default::default() });
+    crate::rtl::append(&mut job, text, TextFormat { font_id: font(size, bold), color, italics: italic, line_height: Some(size * 1.25), ..Default::default() });
     p.layout_job(job)
 }
 
@@ -376,7 +420,8 @@ fn compartment_text(cx: &Ctx, out: &mut Vec<EShape>, s: &Shape) {
         let bx_local = Rect::from_min_max(pos2(8.0, *a + 4.0), pos2(s.w - 8.0, *b - 4.0));
         let bx = Rect::from_min_size(pivot + (bx_local.min.to_vec2() - vec2(s.w / 2.0, s.h / 2.0)) * z, bx_local.size() * z);
         let header = i == 0;
-        let ha = if header { HAlign::Center } else { s.style.align.unwrap_or(HAlign::Left) };
+        // Arabic etc. lines up on the right unless the shape says otherwise
+        let ha = if header { HAlign::Center } else { s.style.align.unwrap_or(if crate::rtl::is_rtl_paragraph(t) { HAlign::Right } else { HAlign::Left }) };
         let g = layout(cx.painter, t, fs, header || s.style.bold, s.style.italic, col, bx.width(), halign(ha));
         place_text(out, g, bx, ha, if header { VAlign::Middle } else { VAlign::Top }, pivot, s.rot, col);
     }
