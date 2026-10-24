@@ -177,6 +177,7 @@ fn rtl_script(c: char) -> bool { matches!(c as u32, 0x0590..=0x08FF | 0xFB1D..=0
 /// Each right-to-left character gets its own section (so its own one-glyph run); everything
 /// else goes in as it is.
 pub fn append(job: &mut egui::text::LayoutJob, text: &str, fmt: egui::TextFormat) {
+    crate::scripts::note(text);
     if !text.chars().any(rtl_script) { job.append(text, 0.0, fmt); return; }
     // (pushed directly: LayoutJob::append merges neighbouring sections of the same format)
     let push = |job: &mut egui::text::LayoutJob, t: &str| {

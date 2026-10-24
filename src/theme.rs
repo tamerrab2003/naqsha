@@ -201,5 +201,6 @@ pub fn fonts() -> FontDefinitions {
     }
     bold_list.extend(f.families.get(&FontFamily::Proportional).cloned().unwrap_or_default());
     f.families.insert(FontFamily::Name("bold".into()), bold_list);
+    crate::scripts::add_to(&mut f);
     f
 }

@@ -180,7 +180,9 @@ fn layout_rtl(p: &Painter, text: &str, size: f32, bold: bool, italic: bool, colo
 fn layout_plain(p: &Painter, text: &str, size: f32, bold: bool, italic: bool, color: Color32, wrap: f32, halign: Align) -> Arc<Galley> {
     let mut job = LayoutJob::default();
     // never split a single word: let it overflow the box instead (Visio / draw.io behaviour)
-    let longest = text.split_whitespace().max_by_key(|w| w.chars().count()).unwrap_or("");
+    // (Chinese and Japanese break between any two characters; Thai is written without spaces)
+    let breakable = |c: char| c.is_whitespace() || crate::scripts::is_cjk(c) || crate::scripts::is_thai(c);
+    let longest = text.split(breakable).max_by_key(|w| w.chars().count()).unwrap_or("");
     let lw = if longest.chars().count() > 3 { p.layout_no_wrap(longest.to_string(), font(size, bold), color).size().x + 1.0 } else { 0.0 };
     job.wrap.max_width = wrap.max(lw).max(4.0);
     job.halign = halign;

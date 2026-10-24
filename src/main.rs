@@ -29,6 +29,7 @@ mod model;
 mod render;
 mod route;
 mod rtl;
+mod scripts;
 mod shell;
 mod subpage;
 mod templates;

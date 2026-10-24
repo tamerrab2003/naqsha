@@ -30,9 +30,16 @@ fn eshape_svg(out: &mut String, sh: &EShape) {
         EShape::Text(t) => {
             let ang = t.angle.to_degrees();
             let _ = write!(out, "<g transform=\"translate({:.2} {:.2}) rotate({:.2})\">", t.pos.x, t.pos.y, ang);
+            // each row's text from the laid-out text: a row has one glyph per character (egui pads
+            // ligatures and conjuncts, as in Hindi or Thai, with empty glyphs), so the glyphs'
+            // own characters aren't the text
+            let src: Vec<char> = t.galley.job.text.chars().collect();
+            let mut k = 0;
             for row in &t.galley.rows {
+                let n = row.glyphs.len();
+                let text: String = src[k.min(src.len())..(k + n).min(src.len())].iter().collect();
+                k += n + usize::from(row.ends_with_newline);
                 let Some(g0) = row.glyphs.first() else { continue };
-                let text: String = row.glyphs.iter().map(|g| g.chr).collect();
                 let sec = &t.galley.job.sections[0];
                 let f = &sec.format;
                 let c = t.override_text_color.unwrap_or(f.color);
@@ -353,6 +360,7 @@ pub fn svg_to_pdf(svg: &str) -> Result<Vec<u8>, String> {
 fn load_fonts(db: &mut svg2pdf::usvg::fontdb::Database) {
     #[cfg(not(target_arch = "wasm32"))]
     db.load_system_fonts();
+    crate::scripts::add_to_db(db);
     #[cfg(target_arch = "wasm32")]
     {
         db.load_font_data(include_bytes!("../web/fonts/DejaVuSans.ttf").to_vec());

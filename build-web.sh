@@ -27,6 +27,8 @@ fi
 # themselves can be cached for a year
 sed "s/__VERSION__/$VERSION/g" web/index.html > "$OUT/index.html"
 cp web/icon.svg "$OUT/"
+# Chinese/Japanese font: downloaded by the app when a drawing needs it (see src/scripts.rs)
+mkdir -p "$OUT/fonts" && cp web/fonts/NotoSansCJK-sub.otf web/fonts/LICENSE-Noto.txt "$OUT/fonts/"
 (cd "$OUT" && rm -f ../naqsha-web.zip && zip -qr ../naqsha-web.zip .)
 ls -l "$OUT"
 echo "Built $OUT and dist/naqsha-web.zip (Naqsha $VERSION)"
