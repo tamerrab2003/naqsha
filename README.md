@@ -4,17 +4,18 @@
 
 # Naqsha
 
-**Diagramming and architecture for macOS, Windows, Linux, the browser and your Office documents: flowcharts, cloud and solution architecture, CI/CD pipelines, Node-RED flows and moving diagrams, Visio and draw.io files.**
+**Diagramming and architecture for macOS, Windows, Linux, the browser and your Office documents: flowcharts, cloud and solution architecture, CI/CD pipelines, Node-RED flows and moving diagrams, Visio and draw.io files. In 17 languages, Arabic and right-to-left included.**
 
 *naqsha* (نقشه): a plan, a map, a blueprint.
 
-[Download](../../releases/latest) · [Open in browser](https://nixpx.com/naqsha/app) · [Build from source](#build-from-source) · [Features](#features) · [File formats](#open-and-save-any-format) · [Roadmap](#roadmap)
+[Download](../../releases/latest) · [Open in browser](https://nixpx.com/naqsha/app) · [Build from source](#build-from-source) · [Features](#features) · [Languages](#languages) · [File formats](#open-and-save-any-format) · [Roadmap](#roadmap)
 
 ![macOS 11+](https://img.shields.io/badge/macOS-11%2B-0F0F1A?logo=apple&logoColor=white)
 ![Windows 10+](https://img.shields.io/badge/Windows-10%2B-0F0F1A?logo=windows&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-.deb%20·%20.rpm-0F0F1A?logo=linux&logoColor=white)
 ![MIT License](https://img.shields.io/badge/license-MIT-6C4DFF)
 ![Written in Rust](https://img.shields.io/badge/written%20in-Rust-19C3DD?logo=rust&logoColor=white)
+![17 languages](https://img.shields.io/badge/languages-17%20·%20RTL-19C3DD)
 ![Opens .vsdx and .drawio](https://img.shields.io/badge/opens-.vsdx%20·%20.drawio%20·%20.svg-6C4DFF)
 
 <picture>
@@ -31,6 +32,7 @@
 - **A real desktop app.** It's GPU-rendered and starts instantly, on macOS, Windows and Linux. On the Mac it has a native menu bar and opens files from Finder. It works offline. Your diagrams are plain files on your disk, not rows in someone else's cloud.
 - **It speaks Visio and draw.io.** Open a `.vsdx` from a colleague, edit it, and send back a `.vsdx`. The same goes for `.drawio`, with pages, layers, containers, shape data and connector routes kept.
 - **Built for architects and DevOps engineers.** It comes with C4, cloud and enterprise-integration stencils, and with templates for solution architecture packs, GitOps and environment promotion. It also imports GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines and Jenkins definitions straight into diagrams.
+- **In your language.** The whole app speaks 17 languages, and Arabic, Persian and Urdu get a mirrored, right-to-left layout. Diagrams mix Arabic, Hindi, Thai, Chinese, Japanese and Latin text, on screen and in exports.
 - **Large systems stay readable.** Any shape can open its own page (a sub-diagram) and shows a live preview of it, so an overview stays clean while the detail is one click away.
 
 ## Features
@@ -104,6 +106,32 @@ Make product flow along a line, data run along a link, a pump spin or an alarm b
 ### Inside Word, Excel, PowerPoint and ONLYOFFICE
 
 Insert a diagram into a document and keep it editable: the file holds the picture and the diagram, so it opens in Naqsha again whenever it changes. See [`office/`](office/) for the Microsoft Office add-in and [`onlyoffice/`](onlyoffice/) for the ONLYOFFICE plugin.
+
+## Languages
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/languages-dark.png">
+  <img src="docs/images/languages-light.png" alt="The same order flowchart in Arabic, Hindi, Japanese, Chinese and Thai, exported from Naqsha as PNG" width="100%">
+</picture>
+
+Naqsha's interface is available in 17 languages:
+
+| | | | |
+|---|---|---|---|
+| English | العربية (Arabic) | Français | Español |
+| Português | हिन्दी (Hindi) | فارسی (Persian) | اردو (Urdu) |
+| Bahasa Melayu | Bahasa Indonesia | ไทย (Thai) | Tiếng Việt |
+| 简体中文 | 繁體中文 | 日本語 | Filipino |
+| Kiswahili | | | |
+
+- **Choosing a language.** Naqsha starts in your system's language. To pick another, use the globe button in the title bar. In the browser version you can also add `?lang=` to the address, for example [nixpx.com/naqsha/app?lang=ar](https://nixpx.com/naqsha/app?lang=ar).
+- **Right to left.** In Arabic, Persian and Urdu the window is mirrored: shapes on the right, the format pane on the left, and the ribbon, tabs and status bar running right to left.
+- **Text in diagrams.** Shape text in any of these scripts is joined, ordered and wrapped correctly. That includes Arabic letters joined with mixed Latin tags and numbers, Hindi conjuncts, Thai, and Chinese and Japanese. SVG, PNG and PDF exports contain real, selectable text in the same fonts as the canvas.
+- **Fonts included.** Noto Sans Devanagari, Thai and Arabic, and a 4 MB everyday-character cut of Noto Sans CJK, so nothing depends on the fonts installed on the computer. The browser version downloads the Chinese/Japanese font only when a drawing first needs it.
+
+What's still English: text the app generates inside drawings (legends, title blocks, line-balance charts, Excel schedules), and the sample content of templates. Thai lines break between characters rather than between words, and Urdu uses the Naskh style, not Nastaliq.
+
+**Help translate.** Translations live in [`locales/`](locales), one JSON file per language, keyed by the English text. If a phrase reads wrong in your language, especially an engineering term, please open an issue or a pull request. `python3 tools/i18n.py missing fr` lists what a language still lacks.
 
 ## Open and save any format
 
@@ -198,7 +226,7 @@ Ideas and bug reports are welcome in [Issues](../../issues).
 ## Contributing
 
 ```bash
-cargo test --release      # 30 tests: formats, routing, layout, sub-diagrams, pipelines, templates
+cargo test --release      # formats, routing, layout, sub-diagrams, pipelines, templates, languages
 cargo run --release       # run the app
 ```
 
@@ -225,6 +253,11 @@ src/formats/       vsdx.rs · drawio.rs · svgin.rs · pipeline.rs
 src/macos.rs       native menu bar, Finder integration
 src/platform.rs    per-OS glue: shortcut names, data folders
 src/files.rs       file dialogs and saving; the browser's file picker, downloads and tabs
+src/i18n.rs        interface languages, the language picker, mirrored layout
+src/rtl.rs         Arabic shaping and right-to-left ordering
+src/scripts.rs     fonts for Devanagari, Thai, Chinese and Japanese
+locales/           translations, one JSON file per language
+vendor/usvg/       usvg with a fix for Indic text in exports
 assets/            icon.svg (source), Naqsha.icns
 linux/  windows/   desktop entry, file types, installer
 web/               the browser page (index.html) and its fonts

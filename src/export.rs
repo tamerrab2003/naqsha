@@ -24,6 +24,43 @@ fn dash_attr(d: Dash, w: f32) -> String {
     match d { Dash::Solid => String::new(), Dash::Dashed => format!(" stroke-dasharray=\"{:.1} {:.1}\"", w * 4.0 + 3.0, w * 2.5 + 2.0), Dash::Dotted => format!(" stroke-dasharray=\"{:.1} {:.1}\" stroke-linecap=\"round\"", w.max(1.0), w * 2.0 + 1.5) }
 }
 
+/// The font the app draws a script with, for characters the Latin export font lacks.
+fn script_font(c: char) -> Option<&'static str> {
+    match c as u32 {
+        0x0900..=0x097F | 0xA8E0..=0xA8FF | 0x1CD0..=0x1CFF => Some("Noto Sans Devanagari"),
+        0x0E00..=0x0E7F => Some("Noto Sans Thai"),
+        0x3000..=0x30FF => Some("Noto Sans CJK SC"),
+        _ if crate::scripts::is_cjk(c) => Some("Noto Sans CJK SC"),
+        _ => None,
+    }
+}
+
+/// Text with each Devanagari, Thai or Chinese/Japanese run in a tspan naming that script's
+/// font. Renderers that fall back font by font (resvg, so PNG and PDF) shape a run in the wrong
+/// font otherwise, and break Hindi conjuncts. Spaces and punctuation stay with the run they're in.
+fn script_runs(text: &str, base: &str) -> String {
+    let mut out = String::new();
+    let mut run = String::new();
+    let mut cur: Option<&str> = None;
+    let flush = |out: &mut String, run: &mut String, f: Option<&str>| {
+        if run.is_empty() { return; }
+        match f {
+            Some(f) => { let _ = write!(out, "<tspan font-family=\"'{f}', {base}\">{}</tspan>", esc(run)); }
+            None => out.push_str(&esc(run)),
+        }
+        run.clear();
+    };
+    for c in text.chars() {
+        let f = script_font(c);
+        let neutral = f.is_none() && !c.is_alphanumeric();
+        if !neutral && f != cur && !run.is_empty() { flush(&mut out, &mut run, cur); }
+        if !neutral { cur = f; }
+        run.push(c);
+    }
+    flush(&mut out, &mut run, cur);
+    out
+}
+
 /// Convert egui shapes we emit for text / labels / heads into SVG.
 fn eshape_svg(out: &mut String, sh: &EShape) {
     match sh {
@@ -57,9 +94,10 @@ fn eshape_svg(out: &mut String, sh: &EShape) {
                     }
                     None => (row.pos.x + g0.pos.x, "", text),
                 };
+                let body = if text.starts_with('\u{202B}') { esc(&text) } else { script_runs(&text, family) };
                 let _ = write!(out, "<text x=\"{:.2}\" y=\"{:.2}\"{anchor} font-family=\"{family}\" font-size=\"{:.2}\" fill=\"{}\"{}{} xml:space=\"preserve\">{}</text>",
                     x, row.pos.y + g0.pos.y, f.font_id.size, col(c),
-                    if bold { " font-weight=\"bold\"" } else { "" }, if f.italics { " font-style=\"italic\"" } else { "" }, esc(&text));
+                    if bold { " font-weight=\"bold\"" } else { "" }, if f.italics { " font-style=\"italic\"" } else { "" }, body);
             }
             out.push_str("</g>");
         }
@@ -358,13 +396,21 @@ pub fn svg_to_pdf(svg: &str) -> Result<Vec<u8>, String> {
 /// Fonts for PNG/PDF export. The desktop uses the system's; the browser has none, so it uses the
 /// fonts built into the app (DejaVu Sans, as on screen, and egui's monospace font).
 fn load_fonts(db: &mut svg2pdf::usvg::fontdb::Database) {
-    #[cfg(not(target_arch = "wasm32"))]
-    db.load_system_fonts();
+    // the app's own fonts first: a character the text's font lacks (Arabic, Hindi, Thai, Chinese…)
+    // is drawn with the first loaded font that has it, so this way it's the font the canvas uses
+    // rather than whichever system font comes first
     crate::scripts::add_to_db(db);
+    db.load_font_data(include_bytes!("../web/fonts/DejaVuSans.ttf").to_vec());
+    db.load_font_data(include_bytes!("../web/fonts/DejaVuSans-Bold.ttf").to_vec());
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        db.load_system_fonts();
+        // no Helvetica or Arial (Linux): sans-serif means DejaVu Sans, as on screen
+        let has = |n: &str| db.faces().any(|f| f.families.iter().any(|(m, _)| m == n));
+        if !has("Helvetica") && !has("Arial") { db.set_sans_serif_family("DejaVu Sans"); }
+    }
     #[cfg(target_arch = "wasm32")]
     {
-        db.load_font_data(include_bytes!("../web/fonts/DejaVuSans.ttf").to_vec());
-        db.load_font_data(include_bytes!("../web/fonts/DejaVuSans-Bold.ttf").to_vec());
         let defs = egui::FontDefinitions::default();
         let mut mono = None;
         for (name, data) in &defs.font_data {

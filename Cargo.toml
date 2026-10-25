@@ -120,3 +120,8 @@ libXcursor = "*"
 libXrandr = "*"
 libXi = "*"
 libwayland-client = "*"
+
+# usvg 0.45 with one fix: a glyph cluster advances by all its glyphs, so Hindi (and other
+# Indic text) isn't overlapped in PNG and PDF exports. See vendor/README.md.
+[patch.crates-io]
+usvg = { path = "vendor/usvg" }

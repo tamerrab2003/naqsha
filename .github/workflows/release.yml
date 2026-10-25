@@ -154,8 +154,15 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
       - run: cd out && sha256sum * > SHA256SUMS.txt && ls -l
+      # the release text: docs/releases/<tag>.md when there is one
+      - uses: actions/checkout@v4
+        with: { path: src, sparse-checkout: docs/releases }
+      - run: |
+          f="src/docs/releases/${GITHUB_REF_NAME}.md"
+          if [ -f "$f" ]; then cp "$f" notes.md; else : > notes.md; fi
       - uses: softprops/action-gh-release@v2
         with:
           files: out/*
+          body_path: notes.md
           generate_release_notes: true
           fail_on_unmatched_files: true
