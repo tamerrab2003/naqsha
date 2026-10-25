@@ -1,4 +1,5 @@
-//! Fonts for writing systems beyond Latin, Greek, Cyrillic and Arabic: Devanagari (Hindi, Marathi,
+//! Fonts for writing systems beyond Latin, Greek, Cyrillic and Arabic (plus the Urdu letters
+//! DejaVu Sans lacks): Devanagari (Hindi, Marathi,
 //! Nepali), Thai, and Chinese / Japanese (Noto Sans CJK SC, cut down to everyday characters:
 //! GB 2312, Big5 level 1, JIS level 1, kana and CJK punctuation; see web/fonts/README.md).
 //!
@@ -19,6 +20,9 @@ const DEVANAGARI: &[u8] = include_bytes!("../web/fonts/NotoSansDevanagari-Regula
 const DEVANAGARI_BOLD: &[u8] = include_bytes!("../web/fonts/NotoSansDevanagari-Bold.ttf");
 const THAI: &[u8] = include_bytes!("../web/fonts/NotoSansThai-Regular.ttf");
 const THAI_BOLD: &[u8] = include_bytes!("../web/fonts/NotoSansThai-Bold.ttf");
+/// The Arabic-script letters DejaVu Sans lacks (Urdu ہ ۂ ے ۓ ۔ and others), from Noto Sans Arabic.
+const URDU: &[u8] = include_bytes!("../web/fonts/NotoSansArabic-Urdu-Regular.ttf");
+const URDU_BOLD: &[u8] = include_bytes!("../web/fonts/NotoSansArabic-Urdu-Bold.ttf");
 #[cfg(not(target_arch = "wasm32"))]
 const CJK: &[u8] = include_bytes!("../web/fonts/NotoSansCJK-sub.otf");
 
@@ -30,8 +34,10 @@ pub fn add_to(f: &mut FontDefinitions) {
     };
     add("devanagari", DEVANAGARI, FontFamily::Proportional);
     add("thai", THAI, FontFamily::Proportional);
+    add("urdu", URDU, FontFamily::Proportional);
     add("devanagari-bold", DEVANAGARI_BOLD, FontFamily::Name("bold".into()));
     add("thai-bold", THAI_BOLD, FontFamily::Name("bold".into()));
+    add("urdu-bold", URDU_BOLD, FontFamily::Name("bold".into()));
     #[cfg(not(target_arch = "wasm32"))]
     {
         add("cjk", CJK, FontFamily::Proportional);
@@ -41,7 +47,7 @@ pub fn add_to(f: &mut FontDefinitions) {
 
 /// Fonts for exporting (resvg): the same ones, where they aren't on the system.
 pub fn add_to_db(db: &mut svg2pdf::usvg::fontdb::Database) {
-    for b in [DEVANAGARI, DEVANAGARI_BOLD, THAI, THAI_BOLD] { db.load_font_data(b.to_vec()); }
+    for b in [DEVANAGARI, DEVANAGARI_BOLD, THAI, THAI_BOLD, URDU, URDU_BOLD] { db.load_font_data(b.to_vec()); }
     if let Some(b) = cjk() { db.load_font_data(b.to_vec()); }
 }
 
