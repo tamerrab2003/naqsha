@@ -351,6 +351,13 @@ fn setup(cc: &eframe::CreationContext<'_>, start: Start) -> shell::Shell {
     let recent = set.recent.clone();
     let mut app = App::new(set.clone(), first);
     app.offer_gallery = matches!(start, Start::Nothing);
+    // a link to a Pro template (`?template=pro:…`) asks for Pro or the trial first, like the gallery does
+    #[cfg(target_arch = "wasm32")]
+    let start = if files::web::param("template").map_or(false, |t| t.starts_with("pro:")) && !pro::active(&app) {
+        app.offer_gallery = false;
+        app.modal = Some(app::Modal::Pro);
+        Start::Nothing
+    } else { start };
     match start {
         Start::File(p) => app.load_path(p),
         Start::Doc(d, name) => app.adopt(d, &name),

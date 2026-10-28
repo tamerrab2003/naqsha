@@ -230,6 +230,8 @@ pub fn language_menu(app: &mut App, ui: &mut Ui) {
     if ui.radio(app.set.lang.is_empty(), crate::i18n::t("System language")).clicked() { set_language(app, ""); ui.close(); }
     ui.separator();
     for (code, name, _) in crate::i18n::LANGS {
+        // in the browser the Chinese/Japanese font loads on demand: the menu's own names need it
+        crate::scripts::note(name);
         if ui.radio(app.set.lang == *code, crate::i18n::w(*name)).clicked() { set_language(app, code); ui.close(); }
     }
 }
@@ -328,19 +330,23 @@ fn ribbon_home(app: &mut App, ui: &mut Ui, pal: &Pal) {
     group(ui, pal, "Shape Styles", |ui| {
         crate::i18n::vertical(ui, |ui| {
             ui.add_enabled_ui(has, |ui| {
-                egui::Grid::new("qstyles").spacing(vec2(4.0, 4.0)).show(ui, |ui| {
-                    for (i, (n, f, s, t, _)) in theme::DIAGRAM_THEMES.iter().enumerate() {
-                        let (rect, r) = ui.allocate_exact_size(vec2(44.0, 24.0), Sense::click());
-                        ui.painter().rect_filled(rect, 5.0, to_c32(Col::hex(f)));
-                        ui.painter().rect_stroke(rect, 5.0, Stroke::new(if r.hovered() { 2.5 } else { 1.5 }, to_c32(Col::hex(s))), StrokeKind::Inside);
-                        ui.painter().text(rect.center(), Align2::CENTER_CENTER, "Abc", FontId::proportional(11.0), to_c32(Col::hex(t)));
-                        if r.on_hover_text(*n).clicked() {
-                            let (f, s, t) = (Col::hex(f), Col::hex(s), Col::hex(t));
-                            app.apply_style("qs", |st| { st.fill = Some(f); st.stroke = Some(s); st.text = Some(t); });
+                // rows of plain horizontal layouts rather than a Grid: a Grid always runs left to right
+                // and breaks the right-to-left ribbon (Arabic, Persian, Urdu)
+                ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
+                for row in theme::DIAGRAM_THEMES.chunks(4) {
+                    ui.horizontal(|ui| {
+                        for (n, f, s, t, _) in row {
+                            let (rect, r) = ui.allocate_exact_size(vec2(44.0, 24.0), Sense::click());
+                            ui.painter().rect_filled(rect, 5.0, to_c32(Col::hex(f)));
+                            ui.painter().rect_stroke(rect, 5.0, Stroke::new(if r.hovered() { 2.5 } else { 1.5 }, to_c32(Col::hex(s))), StrokeKind::Inside);
+                            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "Abc", FontId::proportional(11.0), to_c32(Col::hex(t)));
+                            if r.on_hover_text(*n).clicked() {
+                                let (f, s, t) = (Col::hex(f), Col::hex(s), Col::hex(t));
+                                app.apply_style("qs", |st| { st.fill = Some(f); st.stroke = Some(s); st.text = Some(t); });
+                            }
                         }
-                        if i % 4 == 3 { ui.end_row(); }
-                    }
-                });
+                    });
+                }
             });
         });
     });

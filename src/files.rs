@@ -204,7 +204,8 @@ pub mod web {
             return serde_json::from_str(&json).ok();
         }
         if let Some(id) = param("template") {
-            let e = crate::templates::builtin().into_iter().find(|e| e.id == id)?;
+            // built-in templates by id (`?template=cicd`), Pro ones with their prefix (`?template=pro:pump_station`)
+            let e = crate::templates::builtin().into_iter().chain(crate::pro::templates()).find(|e| e.id == id)?;
             return Some((e.doc, e.name.to_string()));
         }
         None
