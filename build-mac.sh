@@ -45,7 +45,17 @@ rm -f "$DMG"
 STAGE=$(mktemp -d)
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Naqsha" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+# hdiutil's own size estimate for -srcfolder is sometimes too small ("create failed - No space left
+# on device"), so give the image room explicitly, and retry: the CI runners' hdiutil is also flaky.
+SIZE_MB=$(( $(du -sm "$STAGE" | cut -f1) * 13 / 10 + 32 ))
+for try in 1 2 3; do
+  if hdiutil create -volname "Naqsha" -srcfolder "$STAGE" -size "${SIZE_MB}m" -fs HFS+ -ov -format UDZO "$DMG" >/dev/null; then
+    break
+  fi
+  echo "hdiutil create failed (try $try of 3, image ${SIZE_MB} MB)"; df -h "$STAGE" . | sed 's/^/  /'
+  [[ $try == 3 ]] && exit 1
+  rm -f "$DMG"; sleep 10
+done
 rm -rf "$STAGE"
 
 if [[ $INSTALL == 1 ]]; then

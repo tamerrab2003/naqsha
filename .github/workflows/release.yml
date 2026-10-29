@@ -34,6 +34,9 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - run: ./build-mac.sh
+      - name: Disk space (for diagnosing packaging failures)
+        if: always()
+        run: df -h / && du -sh target 2>/dev/null || true
       - name: Name the download
         run: |
           V=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
