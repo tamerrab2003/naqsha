@@ -105,7 +105,7 @@ Make product flow along a line, data run along a link, a pump spin or an alarm b
 
 ### Inside Word, Excel, PowerPoint and ONLYOFFICE
 
-Insert a diagram into a document and keep it editable: the file holds the picture and the diagram, so it opens in Naqsha again whenever it changes. See [`office/`](office/) for the Microsoft Office add-in and [`onlyoffice/`](onlyoffice/) for the ONLYOFFICE plugin.
+Insert a diagram into a document and keep it editable: the file holds the picture and the diagram, so it opens in Naqsha again whenever it changes. See [`office/`](office/) for the Microsoft Office add-in and [`onlyoffice/`](onlyoffice/) for the ONLYOFFICE plugin, which you can install from **Plugins › Plugin Manager** in ONLYOFFICE.
 
 ## Languages
 

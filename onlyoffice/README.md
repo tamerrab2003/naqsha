@@ -9,9 +9,10 @@ Naqsha again, with all its pages, ready to change.
 
 ## How to use it
 
-1. Open **Plugins › Naqsha**.
-2. Pick a template or start from a blank page, and draw.
-3. Press **Insert**. The diagram is placed at the cursor.
+1. Install Naqsha from **Plugins › Plugin Manager** (search for Naqsha), if it isn't installed yet.
+2. Open **Plugins › Naqsha**.
+3. Pick a template or start from a blank page, and draw.
+4. Press **Insert**. The diagram is placed at the cursor.
 
 To change a diagram later, **double-click** it, edit, and press **Insert** again. The picture in
 the document is updated and keeps its size.
