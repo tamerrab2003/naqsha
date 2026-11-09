@@ -76,6 +76,9 @@ fn kind_for(name: &str, st: &HashMap<String, String>) -> &'static str {
     if has("singlearrow") || has("arrow") { return "arrow_r"; }
     if has("cross") || has("plus") { return "cross"; }
     if has("star") { return "star"; }
+    if has("heart") { return "heart"; }
+    if has("half_circle") { return "semicircle"; }
+    if has("moon") { return "crescent"; }
     if has("pentagon") { return "pentagon"; }
     if has("octagon") { return "octagon"; }
     if has("image") { return "image"; }
@@ -376,6 +379,9 @@ fn style_name(kind: &str) -> &'static str {
         "arrow_2" => "shape=doubleArrow;whiteSpace=wrap;",
         "cross" => "shape=cross;whiteSpace=wrap;",
         "star" => "shape=mxgraph.basic.star;whiteSpace=wrap;",
+        "semicircle" => "shape=mxgraph.basic.half_circle;whiteSpace=wrap;",
+        "heart" => "shape=mxgraph.basic.heart;whiteSpace=wrap;",
+        "crescent" => "shape=mxgraph.basic.moon;whiteSpace=wrap;",
         "uml_actor" | "n_user" => "shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;",
         "uml_class" | "uml_interface" | "er_entity" => "swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=26;",
         "container" | "lane_v" => "swimlane;whiteSpace=wrap;",

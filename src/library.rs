@@ -58,6 +58,9 @@ pub const DEFS: &[Def] = &[
     d!("hexagon", "Hexagon", 0, 110, 90, ""),
     d!("octagon", "Octagon", 0, 92, 92, ""),
     d!("star", "Star", 0, 96, 92, ""),
+    d!("semicircle", "Semicircle", 0, 120, 60, ""),
+    d!("heart", "Heart", 0, 96, 88, ""),
+    d!("crescent", "Crescent", 0, 80, 96, ""),
     d!("parallelogram", "Parallelogram", 0, 120, 72, ""),
     d!("trapezoid", "Trapezoid", 0, 120, 72, ""),
     d!("cross", "Cross", 0, 84, 84, ""),
@@ -354,6 +357,9 @@ pub fn text_box(kind: &str, w: f32, h: f32) -> TextBox {
         "rtriangle" => r(4.0, h * 0.45, w * 0.55, h * 0.5),
         "diamond" | "fc_decision" => r(w * 0.16, h * 0.2, w * 0.68, h * 0.6),
         "star" => r(w * 0.28, h * 0.36, w * 0.44, h * 0.34),
+        "semicircle" => r(w * 0.18, h * 0.38, w * 0.64, h * 0.58),
+        "heart" => r(w * 0.2, h * 0.24, w * 0.6, h * 0.4),
+        "crescent" => r(w * 0.04, h * 0.3, w * 0.34, h * 0.4),
         "cylinder" | "fc_database" => { let t = (h * 0.28).min(32.0); r(4.0, t, w - 8.0, h - t - 6.0) }
         "cloud" => r(w * 0.18, h * 0.38, w * 0.66, h * 0.44),
         "callout" => r(6.0, 4.0, w - 12.0, h * 0.78 - 8.0),
@@ -513,6 +519,19 @@ fn star(n: usize, w: f32, h: f32, inner: f32) -> Vec<(f32, f32)> {
 fn cloud(b: &mut PB) {
     b.m(26.0, 84.0).c(9.0, 84.0, 3.0, 64.0, 17.0, 56.0).c(12.0, 38.0, 32.0, 26.0, 46.0, 35.0).c(53.0, 16.0, 82.0, 17.0, 84.0, 40.0).c(99.0, 43.0, 99.0, 84.0, 79.0, 84.0).z();
 }
+/// Heart in a 100x100 box, point at the bottom.
+fn heart(b: &mut PB) {
+    b.m(50.0, 97.0).c(22.0, 76.0, 0.0, 58.0, 0.0, 31.0).c(0.0, 13.0, 12.0, 2.0, 27.0, 2.0).c(38.0, 2.0, 46.0, 9.0, 50.0, 20.0)
+        .c(54.0, 9.0, 62.0, 2.0, 73.0, 2.0).c(88.0, 2.0, 100.0, 13.0, 100.0, 31.0).c(100.0, 58.0, 78.0, 76.0, 50.0, 97.0).z();
+}
+/// Crescent in a 100x100 box, horns pointing right: the outer circle's left side, then the inner
+/// circle (centre (80, 50), through both horn tips) back from the top horn to the bottom one.
+fn crescent(b: &mut PB) {
+    let (hx, hy) = (25.0f32, 50.0 * 0.866_025_4); // horn tips at ±60° on the outer circle
+    let (cx, r) = (80.0f32, ((50.0 + hx - 80.0f32).powi(2) + hy * hy).sqrt());
+    let a = (hy).atan2(50.0 + hx - cx).to_degrees(); // inner-circle angle of the bottom horn
+    b.m(50.0 + hx, 50.0 + hy).arc(50.0, 50.0, 50.0, 50.0, 60.0, 300.0).arc(cx, 50.0, r, r, 360.0 - a, a).z();
+}
 fn cylinder(b: &mut PB, w: f32, h: f32) {
     let ry = (h * 0.14).min(16.0);
     b.m(0.0, ry);
@@ -525,7 +544,7 @@ fn cylinder(b: &mut PB, w: f32, h: f32) {
 
 /// Geometry in local coords (0..w, 0..h).
 pub fn geometry(kind: &str, w: f32, h: f32) -> Vec<Part> {
-    let mut b = if is_icon(kind) || kind == "cloud" { PB::scaled(w, h) } else { PB::new() };
+    let mut b = if is_icon(kind) || matches!(kind, "cloud" | "heart" | "crescent") { PB::scaled(w, h) } else { PB::new() };
     match kind {
         "rect" | "square" | "fc_process" | "uml_class" | "uml_interface" | "er_entity" => { b.rect(0.0, 0.0, w, h); }
         "rrect" => { b.rr(0.0, 0.0, w, h, (w / 5.0).min(h / 5.0).min(14.0)); }
@@ -537,6 +556,10 @@ pub fn geometry(kind: &str, w: f32, h: f32) -> Vec<Part> {
         "hexagon" => { b.poly(&[(w * 0.25, 0.0), (w * 0.75, 0.0), (w, h / 2.0), (w * 0.75, h), (w * 0.25, h), (0.0, h / 2.0)]); }
         "octagon" => { b.poly(&[(w * 0.3, 0.0), (w * 0.7, 0.0), (w, h * 0.3), (w, h * 0.7), (w * 0.7, h), (w * 0.3, h), (0.0, h * 0.7), (0.0, h * 0.3)]); }
         "star" => { b.poly(&star(5, w, h, 0.42)); }
+        // flat side down; rotate the shape for other orientations
+        "semicircle" => { b.m(0.0, h).arc(w / 2.0, h, w / 2.0, h, 180.0, 360.0).z(); }
+        "heart" => heart(&mut b),
+        "crescent" => crescent(&mut b),
         "parallelogram" => { b.poly(&[(w * 0.2, 0.0), (w, 0.0), (w * 0.8, h), (0.0, h)]); }
         "fc_data" => { b.poly(&[(w * 0.18, 0.0), (w, 0.0), (w * 0.82, h), (0.0, h)]); }
         "trapezoid" => { b.poly(&[(w * 0.2, 0.0), (w * 0.8, 0.0), (w, h), (0.0, h)]); }
