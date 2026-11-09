@@ -200,11 +200,11 @@ fn cli_export(args: &[String]) -> Result<(), String> {
     let mut gif = Ok(vec![]);
     for pass in 0..2 {
         // first pass loads fonts, second lays out text
-        let _ = ctx.run_ui(Default::default(), |ui| {
+        ctx.run_ui(Default::default(), |ui| {
             svg = if ext == "svg" && moves { export::page_svg_with(Some(&doc), page, &pal, ui.painter(), export::content_bounds(page, 24.0), export::Motion::Css).0 }
                 else { export::page_svg(Some(&doc), page, &pal, ui.painter(), 24.0).0 };
             if ext == "gif" && pass == 1 { gif = export::page_gif(Some(&doc), page, &pal, ui.painter(), 24.0, 1.0); }
-        });
+        }).textures_delta.clear();
     }
     let bytes = match ext {
         "svg" => svg.into_bytes(),
@@ -542,7 +542,7 @@ mod model_tests {
         // SVG export draws the preview inside the shape
         let ctx = egui::Context::default();
         let mut svg = String::new();
-        for _ in 0..2 { let _ = ctx.run_ui(Default::default(), |ui| { svg = crate::export::page_svg(Some(&a.doc), &a.doc.pages[0], &crate::theme::LIGHT, ui.painter(), 24.0).0; }); }
+        for _ in 0..2 { ctx.run_ui(Default::default(), |ui| { svg = crate::export::page_svg(Some(&a.doc), &a.doc.pages[0], &crate::theme::LIGHT, ui.painter(), 24.0).0; }).textures_delta.clear(); }
         assert!(svg.contains(") scale("), "no preview group in SVG");
     }
 

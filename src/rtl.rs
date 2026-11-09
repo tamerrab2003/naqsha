@@ -297,13 +297,13 @@ mod tests {
         let ctx = egui::Context::default();
         ctx.set_fonts(crate::theme::fonts());
         for _ in 0..2 {
-            let _ = ctx.run_ui(Default::default(), |ui| {
+            ctx.run_ui(Default::default(), |ui| {
                 let g = crate::render::layout(ui.painter(), "العميل", 13.0, false, false, egui::Color32::BLACK, 100.0, egui::Align::Center);
                 let rows: Vec<String> = g.rows.iter().map(|r| r.glyphs.iter().map(|g| g.chr).collect()).collect();
                 let rows: Vec<&str> = rows.iter().map(|r| r.as_str()).collect();
                 assert_eq!(rows, vec!["\u{FEDE}\u{FEF4}\u{FEE4}\u{FECC}\u{FEDF}\u{FE8D}"]);
                 assert_eq!(logical(rows[0]), Some(("العميل".to_string(), true)));
-            });
+            }).textures_delta.clear();
         }
     }
 }
