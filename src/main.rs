@@ -566,6 +566,38 @@ mod model_tests {
     }
 
     #[test]
+    fn templates_insert_into_an_open_diagram() {
+        let tpl = crate::templates::builtin().into_iter().find(|e| e.doc.pages.len() > 1 && e.doc.pages.iter().any(|p| p.shapes.iter().any(|s| s.link.is_some()))).expect("a multi-page template with links");
+        let mut a = App::new(Settings::default(), None);
+        let mine = a.add_shape("rect", pos2(100.0, 100.0));
+        let before = a.doc.pages.len();
+        // as new pages, after the current one, with fresh ids and the links between them kept
+        a.insert_template_pages(tpl.doc.clone(), &tpl.name);
+        assert_eq!(a.doc.pages.len(), before + tpl.doc.pages.len());
+        assert_eq!(a.pi, 1, "shows the first added page");
+        let mut ids = std::collections::HashSet::new();
+        for p in &a.doc.pages {
+            assert!(ids.insert(p.id), "duplicate page id");
+            for s in &p.shapes { assert!(ids.insert(s.id), "duplicate shape id"); }
+            for c in &p.conns { assert!(ids.insert(c.id), "duplicate connector id"); }
+            for c in &p.conns { for e in [c.from, c.to] { if let End::Glued { shape, .. } = e { assert!(p.shape(shape).is_some(), "glue lost"); } } }
+        }
+        let linked: Vec<&Shape> = a.doc.pages.iter().flat_map(|p| &p.shapes).filter(|s| s.link.is_some()).collect();
+        assert!(!linked.is_empty() && linked.iter().all(|s| a.doc.linked_page(s).is_some()), "links between template pages lost");
+        assert!(a.doc.pages[0].shape(mine).is_some(), "the open page changed");
+        // onto this page: the template's shapes join the page, selected, and undo takes them away again
+        a.go_page(0);
+        let n = a.page().shapes.len();
+        let flow = crate::templates::builtin().into_iter().find(|e| e.doc.pages.len() == 1 && e.doc.pages[0].conns.len() > 1).unwrap();
+        a.insert_template_here(flow.doc.clone(), &flow.name);
+        assert_eq!(a.page().shapes.len(), n + flow.doc.pages[0].shapes.len());
+        assert_eq!(a.sel.len(), flow.doc.pages[0].shapes.len() + flow.doc.pages[0].conns.len());
+        for c in &a.page().conns { for e in [c.from, c.to] { if let End::Glued { shape, .. } = e { assert!(a.page().shape(shape).is_some(), "glue lost on this page"); } } }
+        a.do_undo();
+        assert_eq!(a.page().shapes.len(), n);
+    }
+
+    #[test]
     fn vsdx_roundtrip_keeps_structure() {
         let d = sample();
         let bytes = crate::formats::vsdx::export(&d).unwrap();

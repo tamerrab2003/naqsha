@@ -391,6 +391,9 @@ fn ribbon_insert(app: &mut App, ui: &mut Ui, pal: &Pal) {
         if big(ui, pal, "page", "New Page", "Insert a new page").clicked() { app.add_page(); }
         if big(ui, pal, "duplicate", "Duplicate", "Duplicate this page").clicked() { app.dup_page(); }
     });
+    group(ui, pal, "Templates", |ui| {
+        if big(ui, pal, "template", "Template", "Add a template to this diagram, as new pages or onto this page").clicked() { app.gallery.search.clear(); app.modal = Some(Modal::InsertTemplate); }
+    });
     group(ui, pal, "Sub-diagrams", |ui| {
         let one = app.sel_shapes().len() == 1 && app.sel_conns().is_empty();
         let tip = "Give the selected shape its own page (or add a Subprocess shape that opens a new page)";
@@ -1227,7 +1230,9 @@ fn page_thumb(painter: &egui::Painter, doc: &Document, page: &Page, rect: Rect, 
 }
 
 /// The New Diagram dialog. Returns false when it should close.
-fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
+/// The template gallery: for a new diagram, or (`insert`) to add a template to the open one, as new
+/// pages or onto the current page.
+fn gallery(app: &mut App, ctx: &egui::Context, insert: bool) -> bool {
     let pal = app.pal;
     if app.gallery.entries.is_none() {
         let mut v = crate::templates::builtin();
@@ -1238,6 +1243,8 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
     let mut open = true;
     let mut create: Option<(Document, String)> = None;
     let mut create_id = String::new();
+    // when inserting: true adds the template as new pages, false puts it on this page
+    let mut as_pages = true;
     let mut remove: Option<std::path::PathBuf> = None;
     let mut open_file = false;
     let mut open_recent: Option<std::path::PathBuf> = None;
@@ -1249,19 +1256,22 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
         let h = (avail.height() - 330.0).clamp(260.0, 560.0);
         ui.set_width(w);
         ui.horizontal(|ui| {
-            ui.label(crate::i18n::rich(tr("New diagram"), 17.0, None, true));
+            ui.label(crate::i18n::rich(tr(if insert { "Insert Template" } else { "New diagram" }), 17.0, None, true));
             ui.with_layout(crate::i18n::end_layout(Align::Center), |ui| {
                 let te = ui.add(egui::TextEdit::singleline(&mut app.gallery.search).hint_text(t("Search templates")).desired_width(220.0));
                 if te.changed() { app.gallery.cat = 0; }
             });
         });
-        let hint = if crate::embed::active() { tr("Pick a starting point. It replaces the diagram you're editing.").to_string() }
+        let hint = if insert { tr("Add a template to this diagram: as new pages, or onto the page you're on.").to_string() }
+            else if crate::embed::active() { tr("Pick a starting point. It replaces the diagram you're editing.").to_string() }
             else { trf("Pick a starting point. It opens in a new {window} if this one already has a diagram.", &[("window", tr(crate::files::WINDOW))]) };
         ui.label(crate::i18n::rich(hint, 12.0, Some(pal.muted), false));
         ui.add_space(8.0);
         let entries = app.gallery.entries.as_ref().unwrap();
         let q = app.gallery.search.trim().to_lowercase();
         let shown: Vec<usize> = entries.iter().enumerate().filter(|(_, e)| {
+            // the blank diagram has nothing to insert
+            !(insert && e.doc.pages.iter().all(|pg| pg.shapes.is_empty())) &&
             (app.gallery.cat == 0 || cats[app.gallery.cat] == e.cat) && (q.is_empty() || e.name.to_lowercase().contains(&q) || e.desc.to_lowercase().contains(&q) || e.cat.to_lowercase().contains(&q) || tr(&e.name).to_lowercase().contains(&q) || tr(&e.desc).to_lowercase().contains(&q))
         }).map(|(i, _)| i).collect();
         if app.gallery.sel.as_ref().map_or(true, |id| !shown.iter().any(|i| &entries[*i].id == id)) { app.gallery.sel = shown.first().map(|i| entries[*i].id.clone()); }
@@ -1270,8 +1280,10 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
             crate::i18n::vertical(ui, |ui| {
                 ui.set_width(186.0);
                 for (i, c) in cats.iter().enumerate() {
-                    let n = if i == 0 { entries.len() } else { entries.iter().filter(|e| e.cat == *c).count() };
+                    let counted = |e: &&crate::templates::Entry| !(insert && e.doc.pages.iter().all(|pg| pg.shapes.is_empty()));
+                    let n = if i == 0 { entries.iter().filter(counted).count() } else { entries.iter().filter(|e| e.cat == *c).filter(counted).count() };
                     // categories filled by Naqsha Pro stay hidden in a build without it
+                    if insert && n == 0 && i != 0 { continue; } // nothing to insert from it
                     if n == 0 && (*c == "Water & Process" || *c == "Electrical" || *c == "Manufacturing" || *c == "IoT & Automation") { continue; }
                     let on = app.gallery.cat == i;
                     let (rect, resp) = ui.allocate_exact_size(vec2(180.0, 28.0), Sense::click());
@@ -1281,9 +1293,9 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
                     if resp.clicked() { app.gallery.cat = i; app.gallery.search.clear(); }
                 }
                 ui.add_space(10.0);
-                if ui.add(egui::Button::new(t("Open existing file…")).min_size(vec2(180.0, 26.0))).clicked() { open_file = true; }
+                if !insert && ui.add(egui::Button::new(t("Open existing file…")).min_size(vec2(180.0, 26.0))).clicked() { open_file = true; }
                 // recent diagrams, for picking up where you left off
-                let recent: Vec<String> = app.set.recent.iter().filter(|r| std::path::Path::new(r).exists()).take(6).cloned().collect();
+                let recent: Vec<String> = if insert { vec![] } else { app.set.recent.iter().filter(|r| std::path::Path::new(r).exists()).take(6).cloned().collect() };
                 if !recent.is_empty() {
                     ui.add_space(12.0);
                     ui.label(crate::i18n::rich(tr("RECENT"), 10.5, Some(pal.faint), true));
@@ -1364,8 +1376,14 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
                 if let Some(p) = &e.path { if ui.small_button(t("Remove template")).on_hover_text(p.display().to_string()).clicked() { remove = Some(p.clone()); } }
             }
             ui.with_layout(crate::i18n::end_layout(Align::Center), |ui| {
-                let ok = ui.add_enabled(cur.is_some(), egui::Button::new(crate::i18n::rich(tr("Create"), 12.5, Some(Color32::WHITE), true)).fill(pal.accent).min_size(vec2(90.0, 28.0)));
+                let primary = if insert { "Add as New Pages" } else { "Create" };
+                let ok = ui.add_enabled(cur.is_some(), egui::Button::new(crate::i18n::rich(tr(primary), 12.5, Some(Color32::WHITE), true)).fill(pal.accent).min_size(vec2(90.0, 28.0)));
                 if ok.clicked() || (cur.is_some() && ui.input(|i| i.key_pressed(Key::Enter))) { if let Some(e) = cur { create = Some((e.doc.clone(), e.name.clone())); create_id = e.id.clone(); } }
+                if insert {
+                    let here = ui.add_enabled(cur.is_some(), egui::Button::new(t("Add to This Page")).min_size(vec2(90.0, 28.0)))
+                        .on_hover_text(t("Put the template's first page onto the page you're on, in the middle of the view"));
+                    if here.clicked() { if let Some(e) = cur { create = Some((e.doc.clone(), e.name.clone())); create_id = e.id.clone(); as_pages = false; } }
+                }
                 if ui.add(egui::Button::new(t("Cancel")).min_size(vec2(80.0, 28.0))).clicked() { open = false; }
             });
         });
@@ -1377,7 +1395,9 @@ fn gallery(app: &mut App, ctx: &egui::Context) -> bool {
     if let Some((doc, name)) = create {
         // Pro templates need Pro (a licence or the trial)
         if create_id.starts_with("pro:") && !crate::pro::active(app) { app.modal = Some(Modal::Pro); return false; }
-        app.new_from(doc, &name);
+        if !insert { app.new_from(doc, &name); }
+        else if as_pages { app.insert_template_pages(doc, &name); }
+        else { app.insert_template_here(doc, &name); }
         return false;
     }
     open
@@ -1389,7 +1409,8 @@ pub fn modals(app: &mut App, ctx: &egui::Context) {
     let Some(m) = app.modal.take() else { return };
     let mut keep = true;
     match &m {
-        Modal::NewDiagram => { if !gallery(app, ctx) { keep = false; } }
+        Modal::NewDiagram => { if !gallery(app, ctx, false) { keep = false; } }
+        Modal::InsertTemplate => { if !gallery(app, ctx, true) { keep = false; } }
         Modal::Unsaved(p) => {
             let p = *p;
             egui::Modal::new(EId::new("unsaved")).show(ctx, |ui| {
@@ -1673,6 +1694,7 @@ pub fn menu_command(app: &mut App, ui: &mut Ui, id: &str) {
         "page:dup" => app.dup_page(),
         "page:del" => app.del_page(),
         "insert:image" => app.insert_image(),
+        "insert:template" => app.modal = Some(Modal::InsertTemplate),
         "insert:pipeline" => app.insert_pipeline_file(),
         "insert:flows" => app.insert_flows_file(),
         "insert:script" => app.insert_script_file(),

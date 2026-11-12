@@ -106,6 +106,8 @@ pub enum Modal {
     About,
     Shortcuts,
     NewDiagram,
+    /// The template gallery, to add a template to the open diagram rather than start a new one.
+    InsertTemplate,
     Pro,
     /// A dialog of the Pro module, by name.
     #[allow(dead_code)]
@@ -857,6 +859,82 @@ impl App {
     }
 
     /// Start a document from a template: here if this window is empty, otherwise in a new window.
+    /// Gives every page, shape, connector, layer and group in `pages` a fresh id from this document,
+    /// keeping the references between them (glue, groups, layers, links between pages), so pages
+    /// from another document can join this one.
+    fn renumber(&mut self, pages: &mut [Page]) {
+        let mut map: HashMap<Id, Id> = HashMap::new();
+        let doc = &mut self.doc;
+        let mut m = |old: Id| *map.entry(old).or_insert_with(|| doc.new_id());
+        for p in pages.iter_mut() {
+            p.id = m(p.id);
+            for l in p.layers.iter_mut() { l.id = m(l.id); }
+            p.active_layer = p.active_layer.map(&mut m);
+        }
+        for p in pages.iter_mut() {
+            for s in p.shapes.iter_mut() {
+                s.id = m(s.id);
+                s.group = s.group.map(&mut m);
+                s.layer = s.layer.map(&mut m);
+                s.link = s.link.map(&mut m);
+            }
+            for c in p.conns.iter_mut() {
+                c.id = m(c.id);
+                c.layer = c.layer.map(&mut m);
+                for e in [&mut c.from, &mut c.to] { if let End::Glued { shape, .. } = e { *shape = m(*shape); } }
+            }
+        }
+    }
+
+    /// Adds a template's pages after the current page and shows the first of them.
+    pub fn insert_template_pages(&mut self, tdoc: Document, name: &str) {
+        let mut pages = tdoc.pages;
+        if pages.is_empty() { return; }
+        self.checkpoint();
+        // links to pages the template doesn't have can't be kept
+        let ids: Vec<Id> = pages.iter().map(|p| p.id).collect();
+        for p in pages.iter_mut() { for s in p.shapes.iter_mut() { if s.link.map_or(false, |l| !ids.contains(&l)) { s.link = None; } } }
+        self.renumber(&mut pages);
+        // a one-page template gets the template's name, not "Page-1"
+        if pages.len() == 1 { pages[0].name = tr(name).to_string(); }
+        let n = pages.len();
+        let at = self.pi + 1;
+        for (k, p) in pages.into_iter().enumerate() { self.doc.pages.insert(at + k, p); }
+        self.go_page(at);
+        self.dirty = true;
+        self.notify(if n == 1 { trf("Added “{name}” as a new page", &[("name", tr(name))]) } else { trf("Added “{name}” as {n} new pages", &[("name", tr(name)), ("n", &n.to_string())]) });
+    }
+
+    /// Puts the shapes of a template's first page on the current page, in the middle of the view,
+    /// selected so they can be moved together.
+    pub fn insert_template_here(&mut self, tdoc: Document, name: &str) {
+        let Some(mut page) = tdoc.pages.into_iter().next() else { return };
+        if page.shapes.is_empty() && page.conns.is_empty() { return; }
+        self.checkpoint();
+        for s in page.shapes.iter_mut() { s.layer = None; s.link = None; }
+        for c in page.conns.iter_mut() { c.layer = None; }
+        // the current layer, if one is active, gets the new shapes
+        let layer = self.page().active_layer;
+        let mut pages = vec![page];
+        self.renumber(&mut pages);
+        let page = pages.pop().unwrap();
+        let b = crate::export::content_bounds(&page, 0.0);
+        let d = self.view_center_world() - b.center();
+        let mut sel = vec![];
+        let p = self.page_mut();
+        for mut s in page.shapes { s.x += d.x; s.y += d.y; s.layer = layer; sel.push(s.id); p.shapes.push(s); }
+        for mut c in page.conns {
+            for e in [&mut c.from, &mut c.to] { if let End::Free { x, y } = e { *x += d.x; *y += d.y; } }
+            c.translate_bends(d.x, d.y);
+            c.layer = layer;
+            sel.push(c.id);
+            p.conns.push(c);
+        }
+        self.sel = sel;
+        self.dirty = true;
+        self.notify(trf("Added “{name}” to this page", &[("name", tr(name))]));
+    }
+
     pub fn new_from(&mut self, doc: Document, name: &str) {
         // embedded in a document there is only this one diagram: a template replaces it
         if self.is_pristine() || crate::embed::active() { self.adopt(doc, name); } else { self.spawn.push(Spawn::Doc(doc, name.to_string())); }

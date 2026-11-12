@@ -167,6 +167,7 @@ pub fn install_menu(recent: &[String]) -> Option<Box<dyn std::any::Any>> {
         &item("page:dup", "Duplicate Page", None),
         &item("page:del", "Delete Page", None),
         &sep(),
+        &item("insert:template", "Template…", None),
         &item("insert:container", "Container", None),
         &item("insert:lane_h", "Swimlane", None),
         &item("insert:text", "Text Box", None),
