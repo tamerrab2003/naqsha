@@ -134,6 +134,7 @@ pub fn install_menu(recent: &[String]) -> Option<Box<dyn std::any::Any>> {
         &sep(),
         &item("cut", "Cut", cmd(Code::KeyX)),
         &item("copy", "Copy", cmd(Code::KeyC)),
+        &item("copy_image", "Copy as Image", None),
         &item("paste", "Paste", cmd(Code::KeyV)),
         &item("duplicate", "Duplicate", cmd(Code::KeyD)),
         &item("delete", "Delete", None),

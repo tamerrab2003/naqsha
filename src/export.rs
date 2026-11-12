@@ -388,6 +388,15 @@ pub fn svg_to_png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
     pm.encode_png().map_err(|e| e.to_string())
 }
 
+/// Renders the SVG to pixels: (width, height, premultiplied RGBA).
+pub fn svg_to_rgba(svg: &str, scale: f32) -> Result<(usize, usize, Vec<u8>), String> {
+    let t = tree(svg)?;
+    let size = t.size().to_int_size().scale_by(scale).ok_or("bad size")?;
+    let mut pm = resvg::tiny_skia::Pixmap::new(size.width(), size.height()).ok_or("image too large")?;
+    resvg::render(&t, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pm.as_mut());
+    Ok((size.width() as usize, size.height() as usize, pm.take()))
+}
+
 pub fn svg_to_pdf(svg: &str) -> Result<Vec<u8>, String> {
     let t = svg2pdf::usvg::Tree::from_str(svg, &{ let mut o = svg2pdf::usvg::Options::default(); load_fonts(o.fontdb_mut()); o }).map_err(|e| e.to_string())?;
     svg2pdf::to_pdf(&t, svg2pdf::ConversionOptions::default(), svg2pdf::PageOptions::default()).map_err(|e| format!("{e:?}"))

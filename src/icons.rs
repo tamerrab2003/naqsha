@@ -24,6 +24,7 @@ const ICONS: &[(&str, &str)] = &[
     ("undo", r##"<path d="M6.5 3.5 3 7l3.5 3.5"/><path d="M3 7h7.5a4.2 4.2 0 0 1 0 8.4H7.5"/>"##),
     ("redo", r##"<path d="M11.5 3.5 15 7l-3.5 3.5"/><path d="M15 7H7.5a4.2 4.2 0 0 0 0 8.4h3"/>"##),
     ("cut", r##"<circle cx="5" cy="13.5" r="2.3"/><circle cx="13" cy="13.5" r="2.3"/><path d="M6.6 11.8 13.5 2.5M11.4 11.8 4.5 2.5"/>"##),
+    ("copyImage", r##"<rect x="6" y="6" width="10" height="10" rx="1.8"/><path d="M12 6V3.8A1.3 1.3 0 0 0 10.7 2.5H3.8A1.3 1.3 0 0 0 2.5 3.8v6.9A1.3 1.3 0 0 0 3.8 12H6M6.4 14.6l3-3.1 2 2 1.6-1.5 2.7 2.6"/><circle cx="13" cy="9" r="1"/>"##),
     ("copy", r##"<rect x="6" y="6" width="9.5" height="9.5" rx="1.8"/><path d="M12 6V3.8A1.3 1.3 0 0 0 10.7 2.5H3.8A1.3 1.3 0 0 0 2.5 3.8v6.9A1.3 1.3 0 0 0 3.8 12H6"/>"##),
     ("paste", r##"<rect x="3" y="3.5" width="12" height="12.5" rx="1.8"/><rect x="6.2" y="1.8" width="5.6" height="3.4" rx="1"/>"##),
     ("painter", r##"<rect x="2.5" y="2.5" width="11" height="4.5" rx="1.2"/><path d="M13.5 4.8h1.8v4.2H9v2.2"/><rect x="7.6" y="11.2" width="2.8" height="5" rx=".8"/>"##),

@@ -281,7 +281,20 @@ fn ribbon_home(app: &mut App, ui: &mut Ui, pal: &Pal) {
         if big(ui, pal, "paste", "Paste", "Paste (⌘V)").clicked() { ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste); }
         crate::i18n::vertical(ui, |ui| {
             if tb(ui, pal, "cut", "Cut", "Cut (⌘X)", false).clicked() { if let Some(j) = app.clip_json() { ui.ctx().copy_text(j); app.delete_sel(); } }
-            if tb(ui, pal, "copy", "Copy", "Copy (⌘C)", false).clicked() { if let Some(j) = app.clip_json() { ui.ctx().copy_text(j); } }
+            // Copy, with a small arrow for the other ways to copy (as in Office), so the group keeps three rows
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                if tb(ui, pal, "copy", "Copy", "Copy (⌘C)", false).clicked() { if let Some(j) = app.clip_json() { ui.ctx().copy_text(j); } }
+                let (rect, r) = ui.allocate_exact_size(vec2(14.0, 26.0), Sense::click());
+                if r.hovered() { ui.painter().rect_filled(rect, 4.0, pal.hover); }
+                let c = rect.center();
+                ui.painter().add(egui::Shape::convex_polygon(vec![c + vec2(-3.5, -1.5), c + vec2(3.5, -1.5), c + vec2(0.0, 2.5)], pal.muted, Stroke::NONE));
+                let r = tip_text(r, "More ways to copy");
+                egui::Popup::menu(&r).show(|ui| {
+                    if ui.button(t("Copy")).clicked() { if let Some(j) = app.clip_json() { ui.ctx().copy_text(j); } }
+                    if ui.button(t("Copy as Image")).on_hover_text(t("Copy the selection, or the whole page, as an image")).clicked() { let ctx = ui.ctx().clone(); copy_image(app, &ctx); }
+                });
+            });
             let on = app.painter_style.is_some();
             if tb(ui, pal, "painter", "Format Painter", "Copy formatting, then click a shape", on).clicked() {
                 app.painter_style = if on { None } else { app.sel_shapes().first().map(|s| s.style.clone()) };
@@ -577,6 +590,30 @@ fn ribbon_view(app: &mut App, ui: &mut Ui, pal: &Pal) {
             if tb(ui, pal, "zoomOut", "Zoom Out", "⌘-", false).clicked() { app.zoom_center(0.8); }
         });
     });
+}
+
+/// Puts the selection, or the whole page when nothing is selected, on the clipboard as an image,
+/// drawn like the PNG export, to paste into documents, slides and chats.
+pub fn copy_image(app: &mut App, ctx: &egui::Context) {
+    let mut page = app.page().clone();
+    let whole = app.sel.is_empty();
+    if !whole {
+        let (shapes, conns) = app.clip_items();
+        page.shapes = shapes;
+        page.conns = conns;
+    }
+    if page.shapes.is_empty() && page.conns.is_empty() { app.notify(tr("Nothing to copy: the page is empty")); return; }
+    let painter = ctx.layer_painter(egui::LayerId::background());
+    let (svg, w, h) = export::page_svg(Some(&app.doc), &page, &app.pal, &painter, 12.0);
+    // twice the size for sharp text when pasted, but no more than about 40 million pixels
+    let scale = (40.0e6 / (w * h).max(1.0)).sqrt().clamp(0.25, 2.0);
+    match export::svg_to_rgba(&svg, scale) {
+        Ok((pw, ph, px)) => {
+            ctx.copy_image(egui::ColorImage::from_rgba_premultiplied([pw, ph], &px));
+            app.notify(tr(if whole { "Copied the page as an image" } else { "Copied as an image" }));
+        }
+        Err(e) => app.notify(trf("Couldn't copy the image: {error}", &[("error", &e)])),
+    }
 }
 
 pub fn do_export(app: &mut App, ui: &Ui, ext: &str) {
@@ -1113,6 +1150,7 @@ pub fn context_menu(app: &mut App, ctx: &egui::Context) {
             };
             if item(ui, "Cut", "⌘X", has) { if let Some(j) = app.clip_json() { ctx.copy_text(j); app.delete_sel(); } close = true; }
             if item(ui, "Copy", "⌘C", has) { if let Some(j) = app.clip_json() { ctx.copy_text(j); } close = true; }
+            if item(ui, "Copy as Image", "", true) { copy_image(app, ctx); close = true; }
             if item(ui, "Paste", "⌘V", true) { ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste); close = true; }
             if item(ui, "Duplicate", "⌘D", has) { app.duplicate(); close = true; }
             ui.separator();
@@ -1613,6 +1651,7 @@ pub fn menu_command(app: &mut App, ui: &mut Ui, id: &str) {
         "undo" => app.do_undo(),
         "redo" => app.do_redo(),
         "duplicate" => app.duplicate(),
+        "copy_image" => copy_image(app, &ctx),
         "delete" => app.delete_sel(),
         "select_all" => app.select_all(),
         "painter" => app.painter_style = app.sel_shapes().first().map(|s| s.style.clone()),

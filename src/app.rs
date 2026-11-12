@@ -404,11 +404,18 @@ impl App {
     }
 
     // ------------------------------------------------------------- clipboard
-    pub fn clip_json(&self) -> Option<String> {
+    /// The selected shapes, and the connectors that go with them: selected ones, and those glued
+    /// to selected shapes at both ends.
+    pub fn clip_items(&self) -> (Vec<Shape>, Vec<Conn>) {
         let shapes: Vec<Shape> = self.sel_shapes().into_iter().cloned().collect();
         let ids: Vec<Id> = shapes.iter().map(|s| s.id).collect();
         let glued_in = |e: &End| match e { End::Glued { shape, .. } => ids.contains(shape), End::Free { .. } => true };
         let conns: Vec<Conn> = self.page().conns.iter().filter(|c| self.sel.contains(&c.id) || (glued_in(&c.from) && glued_in(&c.to) && !matches!((c.from, c.to), (End::Free { .. }, End::Free { .. })))).cloned().collect();
+        (shapes, conns)
+    }
+
+    pub fn clip_json(&self) -> Option<String> {
+        let (shapes, conns) = self.clip_items();
         if shapes.is_empty() && conns.is_empty() { return None; }
         Some(format!("{}{}", CLIP_TAG, serde_json::to_string(&Clip { shapes, conns }).ok()?))
     }

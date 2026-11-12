@@ -547,6 +547,25 @@ mod model_tests {
     }
 
     #[test]
+    fn copy_as_image_takes_the_selection_or_the_page() {
+        let mut a = App::new(Settings::default(), None);
+        let s = a.add_shape("rect", pos2(100.0, 100.0));
+        a.add_shape("ellipse", pos2(900.0, 700.0));
+        let ctx = egui::Context::default();
+        let mut copied = |a: &mut App| -> [usize; 2] {
+            let mut out = ctx.run_ui(Default::default(), |ui| crate::ui::copy_image(a, ui.ctx()));
+            out.textures_delta.clear();
+            out.platform_output.commands.iter().find_map(|c| match c { egui::OutputCommand::CopyImage(i) => Some(i.size), _ => None }).expect("no image copied")
+        };
+        a.sel = vec![s];
+        let one = copied(&mut a);
+        a.sel.clear();
+        let page = copied(&mut a);
+        assert!(one[0] > 100 && one[1] > 50, "selection image too small: {one:?}");
+        assert!(page[0] > one[0] * 3 && page[1] > one[1] * 3, "page {page:?} vs selection {one:?}");
+    }
+
+    #[test]
     fn vsdx_roundtrip_keeps_structure() {
         let d = sample();
         let bytes = crate::formats::vsdx::export(&d).unwrap();
