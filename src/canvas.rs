@@ -169,7 +169,7 @@ pub fn commit_edit(app: &mut App) {
 
 pub fn canvas(app: &mut App, ui: &mut Ui) {
     let full = ui.available_rect_before_wrap();
-    let rs = if app.set.rulers { 20.0 } else { 0.0 };
+    let rs = if app.set.rulers && app.present.is_none() { 20.0 } else { 0.0 };
     let crect = Rect::from_min_max(full.min + vec2(rs, rs), full.max);
     // a live view keeps the whole page in sight when its frame is resized
     if app.viewer && app.canvas_rect.size() != crect.size() { app.fit_pending = true; }
