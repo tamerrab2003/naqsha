@@ -122,6 +122,20 @@ pub enum Spawn {
     Path(PathBuf),
 }
 
+/// Presenting: which step of which page is showing, and the view moving between steps.
+pub struct Present {
+    /// The step on show (`None` on a page without a story).
+    pub step: Option<usize>,
+    /// When it came on (app time), for fades, the move and auto-advance.
+    pub since: f64,
+    /// Where the view starts its move from: (pan, zoom).
+    pub from: (Vec2, f32),
+    /// The selection, page and full-screen state to restore afterwards.
+    pub restore: (Vec<Id>, usize, bool),
+    /// Show the "last step" hint until this time.
+    pub end_hint: f64,
+}
+
 /// State of the New Diagram (template gallery) dialog.
 #[derive(Default)]
 pub struct Gallery {
@@ -167,6 +181,12 @@ pub struct App {
     pub offer_gallery: bool,
     /// A live view: the diagram only, to look at (pan, zoom, open sub-pages), no editing.
     pub viewer: bool,
+    /// Presenting the page's story full screen.
+    pub present: Option<Present>,
+    /// The right-hand pane shows the Story instead of Format.
+    pub story_tab: bool,
+    /// The story step chosen in the Story pane, shown on the canvas while writing the story.
+    pub story_step: Option<usize>,
     /// Live values by tag, from a host such as the Node-RED add-on.
     pub live: HashMap<String, crate::live::Live>,
     /// Page the context menu was opened on (it closes when the page changes).
@@ -215,7 +235,7 @@ impl App {
             doc: Document::default(), pi: 0, sel: vec![], tool: Tool::Pointer, zoom: 1.0, pan: vec2(40.0, 40.0), fit_pending: true, set, path: None, dirty: false,
             undo: vec![], redo: vec![], coalesce: None, drag: Drag::None, hover: None, guides: vec![], glue: None, edit: None, painter_style: None,
             tab: Tab::Home, search: String::new(), images: HashMap::new(), toast: None, modal: None, open_path_pending: None, allow_close: false, renaming: None,
-            last_title: String::new(), recovery, pal: theme::LIGHT, ctx_menu: None, offer_gallery: false, ctx_menu_page: 0, ctx_menu_t: 0.0, stencil_drag: None, canvas_rect: Rect::NOTHING, mouse_world: None, paste_count: 0.0, now: 0.0, imported_name: None, user_lib: vec![], user_lib_loaded: false, thumbs: HashMap::new(), nav: vec![], focus_shape: None, spawn: vec![], picked: vec![], want_close: false, focused: false, menu_queue: vec![], gallery: Gallery::default(), viewer: false, live: HashMap::new(),
+            last_title: String::new(), recovery, pal: theme::LIGHT, ctx_menu: None, offer_gallery: false, ctx_menu_page: 0, ctx_menu_t: 0.0, stencil_drag: None, canvas_rect: Rect::NOTHING, mouse_world: None, paste_count: 0.0, now: 0.0, imported_name: None, user_lib: vec![], user_lib_loaded: false, thumbs: HashMap::new(), nav: vec![], focus_shape: None, spawn: vec![], picked: vec![], want_close: false, focused: false, menu_queue: vec![], gallery: Gallery::default(), viewer: false, present: None, story_tab: false, story_step: None, live: HashMap::new(),
         }
     }
 
@@ -694,9 +714,12 @@ impl App {
         let mut map = HashMap::new();
         for s in p.shapes.iter_mut() { let n = self.doc.new_id(); map.insert(s.id, n); s.id = n; }
         for c in p.conns.iter_mut() {
-            c.id = self.doc.new_id();
+            let n = self.doc.new_id();
+            map.insert(c.id, n);
+            c.id = n;
             for e in [&mut c.from, &mut c.to] { if let End::Glued { shape, .. } = e { if let Some(n) = map.get(shape) { *shape = *n; } } }
         }
+        for st in p.story.iter_mut() { for id in st.ids_mut() { if let Some(n) = map.get(id) { *id = *n; } } }
         self.doc.pages.insert(self.pi + 1, p);
         self.go_page(self.pi + 1);
     }
@@ -709,6 +732,7 @@ impl App {
         self.go_page(self.pi.min(self.doc.pages.len() - 1));
     }
     pub fn go_page(&mut self, i: usize) {
+        if i != self.pi { self.story_step = None; }
         self.pi = i;
         self.ctx_menu = None;
         self.sel.clear();
@@ -883,6 +907,7 @@ impl App {
                 c.layer = c.layer.map(&mut m);
                 for e in [&mut c.from, &mut c.to] { if let End::Glued { shape, .. } = e { *shape = m(*shape); } }
             }
+            for st in p.story.iter_mut() { for id in st.ids_mut() { *id = m(*id); } }
         }
     }
 
@@ -1115,6 +1140,13 @@ impl App {
     }
     pub fn zoom_center(&mut self, factor: f32) { let c = self.canvas_rect.center(); self.zoom_at(factor, c); }
     pub fn set_zoom(&mut self, z: f32) { let f = z / self.zoom; self.zoom_center(f); }
+    /// The view (pan, zoom) that frames `b` in the canvas, with a margin.
+    pub fn frame_rect(&self, b: Rect, margin: f32) -> (Vec2, f32) {
+        let r = self.canvas_rect;
+        let z = ((r.width() - margin * 2.0) / b.width().max(1.0)).min((r.height() - margin * 2.0) / b.height().max(1.0)).clamp(0.1, 4.0);
+        ((r.size() - b.size() * z) / 2.0 - b.min.to_vec2() * z, z)
+    }
+
     pub fn fit(&mut self) {
         let r = self.canvas_rect;
         if !r.is_finite() || r.width() < 50.0 { return; }

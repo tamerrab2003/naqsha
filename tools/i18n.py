@@ -16,7 +16,7 @@ LIT = r'"((?:[^"\\]|\\.)*)"'
 
 # files whose string literals are mostly interface text: every literal that looks like words
 UI_FILES = ["src/ui.rs", "src/app.rs", "src/canvas.rs", "src/main.rs", "src/shell.rs", "src/embed.rs",
-            "src/subpage.rs", "src/live.rs",
+            "src/subpage.rs", "src/live.rs", "src/story.rs", "src/present.rs",
             "pro/src/ui.rs", "pro/src/license.rs", "pro/src/catalog.rs", "pro/src/production.rs",
             "pro/src/drawset.rs", "pro/src/sheets.rs", "pro/src/schedule.rs", "pro/src/cad.rs", "pro/src/mod.rs"]
 

@@ -32,6 +32,8 @@ mod route;
 mod rtl;
 mod scripts;
 mod shell;
+mod story;
+mod present;
 mod subpage;
 mod templates;
 mod theme;
@@ -122,6 +124,11 @@ impl App {
         crate::embed::frame(self, ui);
         for id in std::mem::take(&mut self.menu_queue) { ui::menu_command(self, ui, &id); }
 
+        if self.present.is_some() {
+            present::frame(self, ui, &ctx);
+            ui::toast(self, &ctx);
+            return;
+        }
         if self.viewer {
             // a live view: just the drawing
             self.set.grid = false;
@@ -552,7 +559,7 @@ mod model_tests {
         let s = a.add_shape("rect", pos2(100.0, 100.0));
         a.add_shape("ellipse", pos2(900.0, 700.0));
         let ctx = egui::Context::default();
-        let mut copied = |a: &mut App| -> [usize; 2] {
+        let copied = |a: &mut App| -> [usize; 2] {
             let mut out = ctx.run_ui(Default::default(), |ui| crate::ui::copy_image(a, ui.ctx()));
             out.textures_delta.clear();
             out.platform_output.commands.iter().find_map(|c| match c { egui::OutputCommand::CopyImage(i) => Some(i.size), _ => None }).expect("no image copied")

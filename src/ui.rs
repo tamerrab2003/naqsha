@@ -575,6 +575,15 @@ fn ribbon_view(app: &mut App, ui: &mut Ui, pal: &Pal) {
             ui.checkbox(&mut app.set.show_right, t("Format pane"));
         });
     });
+    group(ui, pal, "Present", |ui| {
+        let tip = if crate::files::WEB { "Show the diagram full screen and play each page's story" } else { "Show the diagram full screen and play each page's story (F5)" };
+        if big(ui, pal, "play", "Present", tip).clicked() { let ctx = ui.ctx().clone(); present_from_start(app, &ctx); }
+        crate::i18n::vertical(ui, |ui| {
+            if tb(ui, pal, "page", "From This Page", if crate::files::WEB { "Present from the page you're on" } else { "Present from the page you're on (Shift+F5)" }, false).clicked() { let ctx = ui.ctx().clone(); crate::present::start(app, &ctx, Some(0)); }
+            let open = app.story_tab && app.set.show_right;
+            if tb(ui, pal, "story", "Story", "Write this page's story: the steps it plays when you present", open).clicked() { app.set.show_right = true; app.story_tab = !open; }
+        });
+    });
     group(ui, pal, "Animation", |ui| {
         let (icon, label, tip) = if app.set.animate { ("pause", "Pause", "Stop animations moving while you edit") } else { ("play", "Play", "Play animations (set them in the Format pane)") };
         if big(ui, pal, icon, label, tip).clicked() { app.set.animate = !app.set.animate; }
@@ -617,6 +626,12 @@ pub fn copy_image(app: &mut App, ctx: &egui::Context) {
         }
         Err(e) => app.notify(trf("Couldn't copy the image: {error}", &[("error", &e)])),
     }
+}
+
+/// Presents the whole diagram: from the first page's first step.
+pub fn present_from_start(app: &mut App, ctx: &egui::Context) {
+    app.go_page(0);
+    crate::present::start(app, ctx, Some(0));
 }
 
 pub fn do_export(app: &mut App, ui: &Ui, ext: &str) {
@@ -829,13 +844,24 @@ pub fn right(app: &mut App, ui: &mut Ui) {
     let pal = app.pal;
     if !app.set.show_right { return; }
     crate::i18n::end_panel("format").exact_size(284.0).frame(egui::Frame::new().fill(pal.panel).stroke(Stroke::new(1.0, pal.border)).inner_margin(Margin { left: 12, right: 10, top: 8, bottom: 8 })).show(ui, |ui| crate::i18n::mirrored(ui, |ui| {
+        // Format or Story
+        ui.horizontal(|ui| {
+            for (story, label) in [(false, "Format"), (true, "Story")] {
+                let on = app.story_tab == story;
+                let r = ui.add(egui::Button::new(crate::i18n::rich(tr(label), 12.5, Some(if on { pal.accent } else { pal.muted }), on)).fill(if on { with_alpha(pal.accent, 0.12) } else { Color32::TRANSPARENT }).stroke(Stroke::NONE).min_size(vec2(64.0, 24.0)));
+                if r.clicked() { app.story_tab = story; }
+            }
+            ui.with_layout(crate::i18n::end_layout(Align::Center), |ui| { if tb(ui, &pal, if crate::i18n::rtl() { "chevL" } else { "chevR" }, "", "Hide format pane", false).clicked() { app.set.show_right = false; } });
+        });
+        ui.add_space(2.0);
+        if app.story_tab {
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| { story_pane(app, ui, &pal); ui.add_space(30.0); });
+            return;
+        }
         let ns = app.sel_shapes().len();
         let nc = app.sel_conns().len();
         let title = if ns == 1 && nc == 0 { tr(library::def(&app.sel_shapes()[0].kind).name).to_string() } else if ns + nc == 0 { tr("Page").into() } else if nc > 0 && ns == 0 { if nc == 1 { tr("Connector").into() } else { trf("{n} connectors", &[("n", &nc.to_string())]) } } else { trf("{n} items", &[("n", &(ns + nc).to_string())]) };
-        ui.horizontal(|ui| {
-            ui.label(crate::i18n::rich(format!("{} · {}", tr("FORMAT"), title.to_uppercase()), 11.0, Some(pal.muted), true));
-            ui.with_layout(crate::i18n::end_layout(Align::Center), |ui| { if tb(ui, &pal, if crate::i18n::rtl() { "chevL" } else { "chevR" }, "", "Hide format pane", false).clicked() { app.set.show_right = false; } });
-        });
+        ui.label(crate::i18n::rich(title.to_uppercase(), 11.0, Some(pal.muted), true));
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 6.0;
             if ns == 0 && nc == 0 { page_pane(app, ui, &pal); }
@@ -1529,6 +1555,12 @@ pub fn shortcuts(app: &mut App, ctx: &egui::Context) {
     if sc(cmd, Key::O) { app.open_dialog(); }
     if sc(cmd, Key::N) { app.modal = Some(Modal::NewDiagram); }
     if typing { return; }
+    // F5 presents from the first page, Shift+F5 this page (in the browser F5 reloads the page)
+    if !crate::files::WEB {
+        let shift = egui::Modifiers { shift: true, ..Default::default() };
+        if sc(egui::Modifiers::NONE, Key::F5) { present_from_start(app, ctx); }
+        if sc(shift, Key::F5) { crate::present::start(app, ctx, app.story_step.or(Some(0))); }
+    }
     if sc(cs, Key::Z) || sc(cmd, Key::Y) { app.do_redo(); }
     if sc(cmd, Key::Z) { app.do_undo(); }
     if sc(cmd, Key::A) { app.select_all(); }
@@ -1694,6 +1726,9 @@ pub fn menu_command(app: &mut App, ui: &mut Ui, id: &str) {
         "page:dup" => app.dup_page(),
         "page:del" => app.del_page(),
         "insert:image" => app.insert_image(),
+        "present" => present_from_start(app, &ctx),
+        "present:here" => crate::present::start(app, &ctx, Some(0)),
+        "story" => { app.set.show_right = true; app.story_tab = true; }
         "insert:template" => app.modal = Some(Modal::InsertTemplate),
         "insert:pipeline" => app.insert_pipeline_file(),
         "insert:flows" => app.insert_flows_file(),
@@ -1761,4 +1796,153 @@ pub fn brand_texture(ctx: &egui::Context) -> egui::TextureHandle {
     let t = ctx.load_texture("naqsha-brand", ci, egui::TextureOptions::LINEAR);
     ctx.data_mut(|d| d.insert_temp(id, t.clone()));
     t
+}
+
+// ------------------------------------------------------------------ story
+
+/// What to call an item in the Story pane: its text, or what it is.
+fn item_name(page: &Page, id: Id) -> String {
+    if let Some(s) = page.shape(id) {
+        let t = s.text.lines().map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join(" ");
+        return if t.is_empty() { tr(library::def(&s.kind).name).to_string() } else { t.chars().take(28).collect() };
+    }
+    if let Some(c) = page.conn(id) { return if c.text.trim().is_empty() { tr("Connector").to_string() } else { c.text.trim().chars().take(28).collect() }; }
+    tr("(deleted)").to_string()
+}
+
+/// The Story tab: the page's steps, and what the chosen step does.
+fn story_pane(app: &mut App, ui: &mut Ui, pal: &Pal) {
+    let ctx = ui.ctx().clone();
+    let n = app.page().story.len();
+    if app.story_step.map_or(false, |k| k >= n) { app.story_step = n.checked_sub(1); }
+    ui.horizontal(|ui| {
+        let play = ui.add(egui::Button::new(crate::i18n::rich(format!("▶  {}", tr("Present")), 12.5, Some(Color32::WHITE), true)).fill(pal.accent).min_size(vec2(96.0, 28.0)));
+        if play.on_hover_text(t("Present this page full screen, from its first step")).clicked() { crate::present::start(app, &ctx, Some(0)); }
+        if let Some(k) = app.story_step {
+            if ui.add(egui::Button::new(t("From This Step")).min_size(vec2(0.0, 28.0))).clicked() { crate::present::start(app, &ctx, Some(k)); }
+        }
+    });
+    ui.add_space(4.0);
+    if n == 0 {
+        ui.label(crate::i18n::rich(tr("Tell the diagram as a story: each step can make shapes appear, start them moving, raise an alarm, point at them and move the view. Presenting plays the steps one by one."), 12.0, Some(pal.muted), false));
+    }
+    // the steps
+    section(ui, pal, "Steps", |ui| {
+        let mut pick = None;
+        for k in 0..n {
+            let st = &app.page().story[k];
+            let on = app.story_step == Some(k);
+            let cap = st.caption.lines().next().unwrap_or("").trim().to_string();
+            let name = if cap.is_empty() { trf("Step {n}", &[("n", &(k + 1).to_string())]) } else { cap };
+            let (rect, r) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
+            if on { ui.painter().rect_filled(rect, 6.0, with_alpha(pal.accent, 0.14)); } else if r.hovered() { ui.painter().rect_filled(rect, 6.0, pal.hover); }
+            ui.painter().text(rect.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER, (k + 1).to_string(), FontId::proportional(11.0), pal.faint);
+            let clip = ui.painter().with_clip_rect(rect.shrink2(vec2(26.0, 0.0)));
+            crate::i18n::text(&clip, rect.left_center() + vec2(26.0, 0.0), Align2::LEFT_CENTER, &name, FontId::proportional(12.5), if on { pal.accent } else { pal.text });
+            if r.clicked() { pick = Some(if on { None } else { Some(k) }); }
+        }
+        if let Some(p) = pick { app.story_step = p; }
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
+            if ui.button(format!("+ {}", tr("Add Step"))).on_hover_text(t("Add a step after the chosen one")).clicked() {
+                app.checkpoint();
+                let at = app.story_step.map_or(n, |k| k + 1);
+                app.page_mut().story.insert(at, Step::default());
+                app.story_step = Some(at);
+            }
+            if let Some(k) = app.story_step {
+                ui.add_space(4.0);
+                if ui.add_enabled(k > 0, egui::Button::new("↑")).on_hover_text(t("Move up")).clicked() { app.checkpoint(); app.page_mut().story.swap(k, k - 1); app.story_step = Some(k - 1); }
+                if ui.add_enabled(k + 1 < n, egui::Button::new("↓")).on_hover_text(t("Move down")).clicked() { app.checkpoint(); app.page_mut().story.swap(k, k + 1); app.story_step = Some(k + 1); }
+                if tb(ui, pal, "duplicate", "", "Duplicate this step", false).clicked() { app.checkpoint(); let s = app.page().story[k].clone(); app.page_mut().story.insert(k + 1, s); app.story_step = Some(k + 1); }
+                if tb(ui, pal, "trash", "", "Delete this step", false).clicked() { app.checkpoint(); app.page_mut().story.remove(k); app.story_step = if n > 1 { Some(k.min(n - 2)) } else { None }; }
+            }
+        });
+    });
+    let Some(k) = app.story_step else { return };
+    if k >= app.page().story.len() { return; }
+    let sel = app.sel.clone();
+    let m = sel.len();
+    section(ui, pal, &trf("Step {n}", &[("n", &(k + 1).to_string())]), |ui| {
+        ui.label(crate::i18n::rich(tr("Caption"), 11.5, Some(pal.muted), false));
+        let mut cap = app.page().story[k].caption.clone();
+        if ui.add(egui::TextEdit::multiline(&mut cap).desired_rows(2).desired_width(f32::INFINITY).hint_text(t("What to say at this step"))).changed() { app.checkpoint_key("story-caption"); app.page_mut().story[k].caption = cap; }
+        ui.add_space(6.0);
+        let what = if m == 0 { tr("Select shapes or connectors on the page, then choose what happens to them at this step.").to_string() } else { trf("At this step, the {n} selected items:", &[("n", &m.to_string())]) };
+        ui.label(crate::i18n::rich(what, 11.5, Some(pal.muted), false));
+        ui.add_enabled_ui(m > 0, |ui| {
+            let acts = [(Act::Show, "Appear", "Hidden until this step"), (Act::Hide, "Disappear", "Gone from this step on"), (Act::Run, "Run", "Their animation plays: a connector flows, a shape pulses"), (Act::Stop, "Stop", "Their animation stops"), (Act::Alarm, "Alarm", "They glow red"), (Act::Normal, "Normal", "Back to how they are drawn")];
+            let bw = ((ui.available_width() - 8.0) / 3.0).floor();
+            for row_acts in acts.chunks(3) {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    for (a, l, tip) in row_acts {
+                        if ui.add_sized([bw, 24.0], egui::Button::new(t(l)).truncate()).on_hover_text(t(tip)).clicked() {
+                            app.checkpoint();
+                            for id in &sel { crate::story::set_change(&mut app.page_mut().story[k], *id, a.clone()); }
+                        }
+                    }
+                });
+            }
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                if ui.add_sized([bw, 24.0], egui::Button::new(t("Spotlight")).truncate()).on_hover_text(t("They glow during this step, to point at them")).clicked() { app.checkpoint(); app.page_mut().story[k].spot = sel.clone(); }
+                if ui.add_sized([bw, 24.0], egui::Button::new(t("Frame")).truncate()).on_hover_text(t("The view moves to show just them")).clicked() { app.checkpoint(); app.page_mut().story[k].focus = sel.clone(); }
+            });
+        });
+        // new text for one item
+        if m == 1 {
+            let id = sel[0];
+            let key = EId::new(("story-text", k, id));
+            let cur = app.page().story[k].changes.iter().find_map(|c| match (&c.act, c.id == id) { (Act::Text(t), true) => Some(t.clone()), _ => None });
+            let mut buf: String = ui.data(|d| d.get_temp(key)).or(cur).unwrap_or_default();
+            ui.horizontal(|ui| {
+                let te = ui.add(egui::TextEdit::singleline(&mut buf).desired_width(ui.available_width() - 90.0).hint_text(t("New text, e.g. 100%")));
+                if te.changed() { ui.data_mut(|d| d.insert_temp(key, buf.clone())); }
+                if ui.add_enabled(!buf.is_empty(), egui::Button::new(t("Set Text"))).on_hover_text(t("From this step the item shows this text")).clicked() {
+                    app.checkpoint();
+                    crate::story::set_change(&mut app.page_mut().story[k], id, Act::Text(buf.clone()));
+                }
+            });
+        }
+        ui.add_space(6.0);
+        // the step's spotlight, view and timing
+        let st = app.page().story[k].clone();
+        if !st.spot.is_empty() {
+            ui.horizontal(|ui| {
+                ui.label(crate::i18n::rich(trf("In the spotlight: {n}", &[("n", &st.spot.len().to_string())]), 12.0, None, false));
+                if ui.small_button("✕").on_hover_text(t("Remove the spotlight")).clicked() { app.checkpoint(); app.page_mut().story[k].spot.clear(); }
+            });
+            let mut dim = st.dim;
+            if ui.checkbox(&mut dim, t("Dim everything else")).changed() { app.checkpoint(); app.page_mut().story[k].dim = dim; }
+        }
+        ui.horizontal(|ui| {
+            let v = if st.focus.is_empty() { tr("View: the whole page").to_string() } else { trf("View: framed on {n}", &[("n", &st.focus.len().to_string())]) };
+            ui.label(crate::i18n::rich(v, 12.0, None, false));
+            if !st.focus.is_empty() && ui.small_button("✕").on_hover_text(t("Show the whole page")).clicked() { app.checkpoint(); app.page_mut().story[k].focus.clear(); }
+        });
+        ui.horizontal(|ui| {
+            let mut auto = st.auto > 0.0;
+            if ui.checkbox(&mut auto, t("Next step after")).changed() { app.checkpoint(); app.page_mut().story[k].auto = if auto { 3.0 } else { 0.0 }; }
+            if auto {
+                let mut s = st.auto;
+                if ui.add(egui::DragValue::new(&mut s).range(0.5..=60.0).speed(0.1).suffix(" s")).changed() { app.checkpoint_key("story-auto"); app.page_mut().story[k].auto = s; }
+            }
+        });
+        // what this step changes
+        if !st.changes.is_empty() {
+            ui.add_space(6.0);
+            ui.label(crate::i18n::rich(tr("Changes"), 11.5, Some(pal.muted), false));
+            let mut remove = None;
+            for (i, c) in st.changes.iter().enumerate() {
+                ui.horizontal_wrapped(|ui| {
+                    let what = match &c.act { Act::Text(s) => format!("{} “{}”", tr(crate::story::act_label(&c.act)), s), a => tr(crate::story::act_label(a)).to_string() };
+                    if ui.small_button("✕").on_hover_text(t("Remove this change")).clicked() { remove = Some(i); }
+                    let r = ui.add(egui::Label::new(crate::i18n::rich(format!("{} · {}", item_name(app.page(), c.id), what), 12.0, None, false)).sense(Sense::click()));
+                    if r.on_hover_text(t("Select it on the page")).clicked() { app.sel = vec![c.id]; }
+                });
+            }
+            if let Some(i) = remove { app.checkpoint(); app.page_mut().story[k].changes.remove(i); }
+        }
+    });
 }

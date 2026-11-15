@@ -192,10 +192,59 @@ pub struct Page {
     pub line_jumps: bool,
     /// Right-angle connectors route around shapes in their way.
     pub avoid_shapes: bool,
+    /// The page's story: steps shown one after another when presenting (see story.rs).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub story: Vec<Step>,
 }
 
 impl Default for Page {
-    fn default() -> Self { Page { id: 0, name: "Page-1".into(), width: 1400.0, height: 990.0, bg: None, shapes: vec![], conns: vec![], layers: vec![], active_layer: None, line_jumps: true, avoid_shapes: true } }
+    fn default() -> Self { Page { id: 0, name: "Page-1".into(), width: 1400.0, height: 990.0, bg: None, shapes: vec![], conns: vec![], layers: vec![], active_layer: None, line_jumps: true, avoid_shapes: true, story: vec![] } }
+}
+
+/// What a story step does to a shape or connector; it lasts until a later step changes it again.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Act {
+    /// Appears at this step (hidden before it).
+    Show,
+    /// Disappears from this step on.
+    Hide,
+    /// Its animation plays (a connector flows, a shape pulses when it has none of its own).
+    Run,
+    /// Its animation stops.
+    Stop,
+    /// Glows red.
+    Alarm,
+    /// Back to how it is drawn: its own text, look and animation.
+    Normal,
+    /// Shows this text instead of its own.
+    Text(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Change { pub id: Id, pub act: Act }
+
+/// One step of a page's story.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct Step {
+    /// Shown along the bottom while presenting.
+    pub caption: String,
+    pub changes: Vec<Change>,
+    /// Glow during this step only, to point at something.
+    pub spot: Vec<Id>,
+    /// Fade everything that isn't in the spotlight.
+    pub dim: bool,
+    /// The view moves to frame these; empty frames the whole page.
+    pub focus: Vec<Id>,
+    /// Seconds before the next step comes by itself; 0 waits for a click or key.
+    pub auto: f32,
+}
+
+impl Step {
+    /// Every id the step refers to, to renumber them along with the page.
+    pub fn ids_mut(&mut self) -> impl Iterator<Item = &mut Id> {
+        self.changes.iter_mut().map(|c| &mut c.id).chain(self.spot.iter_mut()).chain(self.focus.iter_mut())
+    }
 }
 
 impl Page {

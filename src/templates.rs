@@ -75,6 +75,8 @@ impl B {
         self.style(id, |s| s.data = vec![("file".into(), file.into())]);
         id
     }
+    /// Gives the current page a story.
+    fn story(&mut self, steps: Vec<Step>) { self.doc.pages[self.cur].story = steps; }
     fn done(mut self) -> Document { self.doc.fix_ids(); self.doc }
 }
 
@@ -183,7 +185,7 @@ fn cicd() -> Document {
     b.title("CI/CD pipeline", "Trigger → build → verify → package → release. Open “Deploy to production” (↗) for its steps.");
     let (top, h, w, gap) = (110.0, 600.0, 250.0, 60.0);
     let col = |i: usize| 220.0 + i as f32 * (w + gap);
-    for (i, st) in ["Build", "Verify", "Package", "Release"].iter().enumerate() { b.s("p_stage", col(i), top, w, h, st); }
+    let stage: Vec<Id> = ["Build", "Verify", "Package", "Release"].iter().enumerate().map(|(i, st)| b.s("p_stage", col(i), top, w, h, st)).collect();
     let cx = |i: usize| col(i) + w / 2.0;
     let trig = b.at("d_commit", 110.0, top + 140.0, "Push / pull request");
     let checkout = b.at("d_repo", cx(0), top + 140.0, "Checkout");
@@ -201,22 +203,28 @@ fn cicd() -> Document {
     let prod = b.at("p_job", cx(3), top + 430.0, "Deploy to production");
     let rollback = b.at("d_rollback", cx(3) - 60.0, top + 540.0, "Roll back");
     let notify = b.at("d_notify", cx(3) + 60.0, top + 540.0, "Notify team");
-    b.c(trig, checkout, "");
-    b.c(checkout, build, "");
-    b.c(build, unit, "");
-    b.cp(unit, 1, sast, 3, "");
-    b.c(sast, it, "");
-    b.c(it, gate, "");
-    b.cp(gate, 1, image, 3, "pass");
-    b.c(image, reg, "");
-    b.c(reg, rel, "");
-    b.cp(rel, 1, stg, 3, "");
-    b.c(stg, smoke, "");
-    b.c(smoke, appr, "");
-    b.c(appr, prod, "approved");
+    let c = [
+        b.c(trig, checkout, ""), b.c(checkout, build, ""), b.c(build, unit, ""),
+        b.cp(unit, 1, sast, 3, ""), b.c(sast, it, ""), b.c(it, gate, ""),
+        b.cp(gate, 1, image, 3, "pass"), b.c(image, reg, ""), b.c(reg, rel, ""),
+        b.cp(rel, 1, stg, 3, ""), b.c(stg, smoke, ""), b.c(smoke, appr, ""), b.c(appr, prod, "approved"),
+    ];
     let f = b.c(prod, rollback, "on failure");
     b.dashed(f);
-    b.c(prod, notify, "");
+    let nf = b.c(prod, notify, "");
+    // a story to present (View › Present): the change travels through the stages one by one
+    let ch = |ids: &[Id], act: Act| ids.iter().map(|id| Change { id: *id, act: act.clone() }).collect::<Vec<_>>();
+    let step = |caption: &str, changes: Vec<Change>, spot: Vec<Id>, focus: Vec<Id>| Step { caption: caption.into(), changes, dim: !spot.is_empty(), spot, focus, auto: 0.0 };
+    b.story(vec![
+        step("A push or pull request starts the pipeline", [ch(&[stage[0], trig, checkout, build, unit], Act::Show), ch(&[c[0]], Act::Run)].concat(), vec![], vec![trig, stage[0]]),
+        step("Build: check out the code, compile it, run the unit tests", ch(&[c[1], c[2]], Act::Run), vec![checkout, build, unit], vec![trig, stage[0]]),
+        step("Verify: scan the code and its dependencies, run the integration tests", [ch(&[stage[1], sast, it, gate], Act::Show), ch(&[c[3], c[4], c[5]], Act::Run)].concat(), vec![], vec![stage[0], stage[1]]),
+        step("The quality gate stops anything under 80% test coverage", vec![], vec![gate], vec![stage[1]]),
+        step("Package: build the container image, push it, tag the release", [ch(&[stage[2], image, reg, rel], Act::Show), ch(&[c[6], c[7], c[8]], Act::Run)].concat(), vec![], vec![stage[1], stage[2]]),
+        step("Release: deploy to staging, run smoke tests, then a person approves", [ch(&[stage[3], stg, smoke, appr, prod], Act::Show), ch(&[c[9], c[10], c[11], c[12]], Act::Run)].concat(), vec![], vec![stage[2], stage[3]]),
+        step("If the production deploy fails, it rolls back and tells the team", [ch(&[rollback, notify], Act::Show), ch(&[prod], Act::Alarm), ch(&[f, nf], Act::Run)].concat(), vec![], vec![stage[3]]),
+        step("Every push, from commit to production, the same way every time", [ch(&[prod], Act::Normal), ch(&c, Act::Run)].concat(), vec![], vec![]),
+    ]);
     // the production deploy job has its own page of steps
     let main = b.cur;
     let steps = b.page("Deploy to production", 1100.0, 900.0);

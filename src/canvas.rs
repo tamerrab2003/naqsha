@@ -197,7 +197,7 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
         }
     }
     let view = View { origin: crect.min, pan: app.pan, zoom: app.zoom };
-    if app.viewer {
+    if app.viewer || app.present.is_some() {
         viewer_input(app, ui, &resp, &view);
         paint(app, ui, &painter, &view, crect);
         live_badges(app, &painter, &view);
@@ -329,6 +329,14 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
 fn viewer_input(app: &mut App, ui: &mut Ui, resp: &egui::Response, view: &View) {
     app.hover = None;
     app.sel.clear();
+    if app.present.is_some() {
+        // presenting: a click goes to the next step, or opens a sub-diagram from its badge
+        let over_link = resp.hover_pos().and_then(|p| match hit_test(app, view, p) { Hit::Link(id) if app.link_target(id).is_some() => Some(id), _ => None });
+        if over_link.is_some() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
+        if resp.clicked() { match over_link { Some(id) => { app.open_link(id); if let Some(p) = app.present.as_mut() { p.step = (!app.doc.pages[app.pi].story.is_empty()).then_some(0); p.since = app.now; p.from = (Vec2::ZERO, 0.0); } } None => crate::present::go(app, 1) } }
+        if resp.secondary_clicked() { crate::present::go(app, -1); }
+        return;
+    }
     if resp.drag_started() {
         let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or_default();
         app.drag = Drag::Pan { start: origin, pan0: app.pan };
@@ -825,19 +833,30 @@ fn click(app: &mut App, hit: Hit, wp: Pos2, shift: bool) {
 fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect) {
     let pal = app.pal;
     let z = v.zoom;
-    painter.rect_filled(crect, 0.0, pal.canvas);
-    let live_page = crate::live::apply(app.page(), &app.live);
+    // the story step on show (presenting) or chosen in the Story pane (writing the story)
+    let accent = { let a = pal.accent; Col([a.r(), a.g(), a.b(), 255]) };
+    let story_page = match &app.present {
+        Some(p) => crate::story::apply(app.page(), p.step, crate::story::Mode::Play { t: (app.now - p.since) as f32 }, accent),
+        None if app.story_tab && app.set.show_right => crate::story::apply(app.page(), app.story_step, crate::story::Mode::Preview, accent),
+        None => std::borrow::Cow::Borrowed(app.page()),
+    };
+    let live_page = crate::live::apply(&story_page, &app.live);
     let page: &Page = &live_page;
     let page_bg = page.bg.map(to_c32).unwrap_or(pal.page);
     let pr = v.rect(Rect::from_min_size(Pos2::ZERO, vec2(page.width, page.height)));
-    for i in 1..=4 {
-        let f = i as f32;
-        painter.rect_filled(pr.translate(vec2(0.0, f)).expand(f), CornerRadius::same(i as u8), Color32::from_black_alpha(if pal.dark { 30 } else { 7 }));
+    let presenting = app.present.is_some();
+    // presenting, the page fills the screen: no sheet edge, no grid
+    painter.rect_filled(crect, 0.0, if presenting { page_bg } else { pal.canvas });
+    if !presenting {
+        for i in 1..=4 {
+            let f = i as f32;
+            painter.rect_filled(pr.translate(vec2(0.0, f)).expand(f), CornerRadius::same(i as u8), Color32::from_black_alpha(if pal.dark { 30 } else { 7 }));
+        }
+        painter.rect_filled(pr, 0.0, page_bg);
+        painter.rect_stroke(pr, 0.0, Stroke::new(1.0, pal.border), StrokeKind::Outside);
     }
-    painter.rect_filled(pr, 0.0, page_bg);
-    painter.rect_stroke(pr, 0.0, Stroke::new(1.0, pal.border), StrokeKind::Outside);
 
-    if app.set.grid {
+    if app.set.grid && !presenting {
         let g = app.set.grid_size;
         let vis = pr.intersect(crect);
         let mut step = g;
