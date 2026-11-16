@@ -321,7 +321,8 @@ pub fn page_svg_with(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &P
 
     let empty = HashMap::new();
     let time = match motion { Motion::Still => Some(0.0), Motion::At(t) => Some(t), Motion::Css => None };
-    let cx = Ctx { painter, view: View { origin: Pos2::ZERO, pan: egui::Vec2::ZERO, zoom: 1.0 }, pal, images: &empty, doc, depth: 0, time };
+    let page_pal = Pal { page: page_bg, ..*pal };
+    let cx = Ctx { painter, view: View { origin: Pos2::ZERO, pan: egui::Vec2::ZERO, zoom: 1.0 }, pal: &page_pal, images: &empty, doc, depth: 0, time };
     let mut rules = String::new();
     let mut items = String::new();
     write_items(&mut items, &cx, page, page_bg, if motion == Motion::Css { Some(&mut rules) } else { None }, None);

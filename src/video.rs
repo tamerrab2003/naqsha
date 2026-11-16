@@ -192,6 +192,7 @@ impl Plan {
         let shown = story::apply(page, seg.k, story::Mode::Play { t }, accent);
         let fx = story::fx(page, seg.k, t);
         let bg = page.bg.map(crate::theme::to_c32).unwrap_or(pal.page);
+        let pal = &Pal { page: bg, ..*pal };
         let (w, h) = (self.w as f32, self.h as f32);
         let mut o = String::with_capacity(64 * 1024);
         let _ = write!(o, "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">");

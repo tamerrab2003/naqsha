@@ -1349,7 +1349,8 @@ fn page_thumb(painter: &egui::Painter, doc: &Document, page: &Page, rect: Rect, 
     let at = rect.center() - size / 2.0;
     let v = View { origin: at - b.min.to_vec2() * k, pan: egui::Vec2::ZERO, zoom: k };
     let empty = HashMap::new();
-    let cx = Ctx { painter, view: v, pal, images: &empty, doc: Some(doc), depth: 1, time: Some(0.0) };
+    let page_pal = Pal { page: page.bg.map(crate::theme::to_c32).unwrap_or(pal.page), ..*pal };
+    let cx = Ctx { painter, view: v, pal: &page_pal, images: &empty, doc: Some(doc), depth: 1, time: Some(0.0) };
     let mut out = vec![];
     for s in page.shapes.iter().filter(|s| page.shape_shown(s)) {
         let legible = s.style.font_size.unwrap_or(13.0) * k >= 4.5;

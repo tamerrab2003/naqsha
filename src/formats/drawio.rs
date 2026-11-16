@@ -243,6 +243,9 @@ pub fn import(text: &str) -> Result<Imported, String> {
             None
         };
         let mut page = Page { id: doc.new_id(), name, line_jumps: false, avoid_shapes: false, ..Default::default() };
+        // draw.io pages are white (or their own background colour): set it, so the diagram's black
+        // lines and text stay on white in Naqsha's dark theme too
+        if !ours { page.bg = Some(model.attribute("background").and_then(hex_col).unwrap_or(BLACK_WHITE.1)); }
         if let (Some(w), Some(h)) = (model.attribute("pageWidth").and_then(|v| v.parse::<f32>().ok()), model.attribute("pageHeight").and_then(|v| v.parse::<f32>().ok())) { page.width = w; page.height = h; }
         // layers = children of the root cell
         let mut layer_map: HashMap<String, Id> = HashMap::new();
@@ -641,6 +644,8 @@ mod tests {
         assert_eq!(b.style.fill, Some(Col([255, 255, 255, 255])));
         assert_eq!(b.style.stroke, Some(Col([0, 0, 0, 255])));
         assert_eq!(b.style.font_size, Some(12.0));
+        // a white page, as in draw.io, whatever Naqsha's theme
+        assert_eq!(p.bg, Some(Col([255, 255, 255, 255])));
     }
 
     #[test]

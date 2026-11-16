@@ -895,7 +895,10 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
     }
 
     let tex: HashMap<Id, egui::TextureId> = app.images.iter().map(|(k, (_, t))| (*k, t.id())).collect();
-    let cx = Ctx { painter, view: *v, pal: &pal, images: &tex, doc: Some(&app.doc), depth: 0, time: Some(app.anim_time(ui.ctx())) };
+    // text keeps itself readable against the page it is on (an imported draw.io page is white even
+    // in the dark theme)
+    let page_pal = crate::theme::Pal { page: page_bg, ..pal };
+    let cx = Ctx { painter, view: *v, pal: &page_pal, images: &tex, doc: Some(&app.doc), depth: 0, time: Some(app.anim_time(ui.ctx())) };
     let mut out: Vec<EShape> = Vec::with_capacity(512);
     let editing = app.edit.as_ref().map(|e| (e.id, e.conn));
     let vis_world = Rect::from_min_max(v.w(crect.min), v.w(crect.max)).expand(60.0);
