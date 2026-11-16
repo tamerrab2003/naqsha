@@ -67,3 +67,12 @@ pub fn templates() -> Vec<crate::templates::Entry> { vec![] }
 
 /// A dialog of the Pro module (Modal::Ext). Returns false when it should close.
 pub fn ext_dialog(_app: &mut App, _ui: &mut Ui, _pal: &Pal, _name: &str) -> bool { false }
+
+/// The Pro part of the Export Video dialog: here, what Pro would add.
+pub fn video_options(_app: &mut App, ui: &mut Ui, pal: &Pal) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Naqsha Pro").strong().color(pal.accent));
+        if ui.link("Learn more").clicked() { ui.ctx().open_url(egui::OpenUrl::new_tab(PAGE)); }
+    });
+    ui.label(RichText::new("Your logo and colour, no \"Made with Naqsha\" mark, every page in one video, 60 frames a second and 4K.").color(pal.muted));
+}

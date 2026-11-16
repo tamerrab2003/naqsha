@@ -233,17 +233,19 @@ fn cli_export(args: &[String]) -> Result<(), String> {
 fn cli_video(ctx: &egui::Context, doc: &model::Document, page: &model::Page, pal: &theme::Pal, args: &[String], output: &str) -> Result<(), String> {
     let format = if args.iter().any(|a| a == "--wide") { video::Format::Wide } else if args.iter().any(|a| a == "--square") { video::Format::Square } else { video::Format::Tall };
     let title = args.iter().position(|a| a == "--title").and_then(|i| args.get(i + 1)).cloned().unwrap_or_default();
+    // the free choices: Pro's (logo, every page, 60 fps, 4K, no mark) are in the app
     let opts = video::Opts { format, title, ..Default::default() };
-    let plan = video::Plan::new(page, &opts);
+    let pi = doc.pages.iter().position(|p| std::ptr::eq(p, page)).unwrap_or(0);
+    let plan = video::Plan::new(doc, pi, &opts);
     let fonts = export::svg_options();
-    let mut out = video::Mp4Out::create(std::path::Path::new(output), plan.w, plan.h)?;
+    let mut out = video::Mp4Out::create(std::path::Path::new(output), plan.w, plan.h, plan.fps)?;
     let n = plan.frames();
     let started = std::time::Instant::now();
     let mut res: Result<(), String> = Ok(());
     ctx.run_ui(Default::default(), |ui| {
         res = (|| {
             for i in 0..n {
-                let svg = plan.frame_svg(doc, page, pal, ui.painter(), i);
+                let svg = plan.frame_svg(doc, pal, ui.painter(), i);
                 out.push(&video::raster(&svg, &fonts, plan.w, plan.h)?)?;
                 if i % 30 == 0 { eprint!("\r{}/{} frames, {:.0}s", i, n, started.elapsed().as_secs_f32()); }
             }

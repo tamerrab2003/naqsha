@@ -673,10 +673,10 @@ fn video_dialog(app: &mut App, ctx: &egui::Context) -> bool {
         ui.set_width(420.0);
         ui.label(crate::i18n::rich(tr("Export Video"), 16.0, None, true));
         ui.add_space(2.0);
-        let page = app.page();
-        let n = page.story.len();
-        let plan = crate::video::Plan::new(page, &app.video_opts);
+        let plan = crate::video::Plan::new(&app.doc, app.pi, &video_opts(app));
+        let n = plan.steps;
         let about = if n == 0 { tr("This page has no story yet, so the video shows it as it is. Write one in the Story pane (View › Story).").to_string() }
+            else if app.video_opts.all_pages && crate::pro::active(app) { trf("Plays every page's story: {n} steps, about {s} seconds.", &[("n", &n.to_string()), ("s", &(plan.total.round() as i32).to_string())]) }
             else { trf("Plays this page's story: {n} steps, about {s} seconds.", &[("n", &n.to_string()), ("s", &(plan.total.round() as i32).to_string())]) };
         ui.label(crate::i18n::rich(about, 12.0, Some(pal.muted), false));
         ui.add_space(10.0);
@@ -701,7 +701,10 @@ fn video_dialog(app: &mut App, ctx: &egui::Context) -> bool {
             ui.label(t("Each step at least"));
             ui.add(egui::DragValue::new(&mut app.video_opts.step_secs).range(1.5..=20.0).speed(0.1).suffix(tr(" s")));
         });
-        ui.checkbox(&mut app.video_opts.mark, t("“Made with Naqsha” in the corner"));
+        // logo, colour, every page, 60 fps, 4K, no mark: Naqsha Pro
+        ui.add_space(8.0);
+        ui.separator();
+        crate::pro::video_options(app, ui, &pal);
         ui.add_space(12.0);
         ui.horizontal(|ui| {
             ui.with_layout(crate::i18n::end_layout(Align::Center), |ui| {
@@ -714,9 +717,10 @@ fn video_dialog(app: &mut App, ctx: &egui::Context) -> bool {
         open = false;
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let name = format!("{} - {}.mp4", app.title(), app.page().name);
+            let opts = video_opts(app);
+            let name = if opts.all_pages { format!("{}.mp4", app.title()) } else { format!("{} - {}.mp4", app.title(), app.page().name) };
             if let Some(path) = rfd::FileDialog::new().add_filter("MP4", &["mp4"]).set_file_name(&name).save_file() {
-                match crate::video::Job::start(&app.doc, app.pi, app.pal, &app.video_opts, path) {
+                match crate::video::Job::start(&app.doc, app.pi, app.pal, &opts, path) {
                     Ok(j) => app.video_job = Some(j),
                     Err(e) => app.notify(trf("Export failed: {error}", &[("error", &e)])),
                 }
@@ -724,6 +728,13 @@ fn video_dialog(app: &mut App, ctx: &egui::Context) -> bool {
         }
     }
     open
+}
+
+/// The video choices that apply: Pro's only with Naqsha Pro.
+fn video_opts(app: &App) -> crate::video::Opts {
+    let mut o = app.video_opts.clone();
+    if !crate::pro::active(app) { o.free(); }
+    o
 }
 
 /// A video being made: a few more frames, and how far along it is.
