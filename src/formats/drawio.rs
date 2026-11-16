@@ -1,5 +1,5 @@
 //! draw.io / diagrams.net import and export (.drawio, .xml, compressed or plain).
-use super::{decode_entities, hex_col, html_to_text, Imported};
+use super::{decode_entities, hex_col, html_look, html_to_text, Imported};
 use crate::library;
 use crate::model::*;
 use std::collections::HashMap;
@@ -49,6 +49,14 @@ fn kind_for(name: &str, st: &HashMap<String, String>) -> &'static str {
     let s = shape.to_ascii_lowercase();
     let has = |k: &str| s.contains(k);
     if name == "text" || st.contains_key("text") && !st.contains_key("shape") { return "text"; }
+    // stencils from other libraries (AWS, Cisco, isometric…): their names say nothing about their
+    // outline ("mxgraph.aws3d.arrowNE" is not an arrow), so they stay plain boxes
+    if let Some(ns) = s.strip_prefix("mxgraph.") {
+        if !matches!(ns.split('.').next().unwrap_or(""), "flowchart" | "basic" | "arrows" | "arrows2" | "general" | "lean_mapping") { return "rect"; }
+    }
+    if s == "endstate" { return "uml_final"; }
+    if s == "startstate" { return "ellipse"; }
+    if matches!(s.as_str(), "umlframe" | "partialrectangle" | "table" | "tablerow" | "line" | "waypoint") { return "rect"; }
     if name == "swimlane" || s == "swimlane" { return "container"; }
     if has("ellipse") || has("circle") || has("oval") { return if has("doubleellipse") { "uml_final" } else { "ellipse" }; }
     if has("rhombus") || has("decision") { return "fc_decision"; }
@@ -105,6 +113,22 @@ fn arrow(v: Option<&String>, default: Arrow) -> Arrow {
         Some(s) if s.starts_with("oval") || s.starts_with("circle") || s.starts_with("ERzero") => Arrow::Circle,
         _ => Arrow::Filled,
     }
+}
+
+/// Black and white, for draw.io's default line and fill.
+const BLACK_WHITE: (Col, Col) = (Col([0, 0, 0, 255]), Col([255, 255, 255, 255]));
+
+/// dashed=1, and dotted when its dash pattern is dots (dashPattern=1 4).
+fn dash(st: &HashMap<String, String>) -> Dash {
+    if !st.get("dashed").map_or(false, |v| v == "1") { return Dash::Solid; }
+    if st.get("dashPattern").map_or(false, |p| p.split_whitespace().next() == Some("1")) { Dash::Dotted } else { Dash::Dashed }
+}
+
+/// The connection point of a shape nearest to (fx, fy), as fractions of its width and height.
+fn port_near(kind: &str, fx: f32, fy: f32) -> i32 {
+    library::ports(kind).iter().enumerate()
+        .min_by(|a, b| ((a.1 .0 - fx).powi(2) + (a.1 .1 - fy).powi(2)).total_cmp(&((b.1 .0 - fx).powi(2) + (b.1 .1 - fy).powi(2))))
+        .map_or(-1, |(i, _)| i as i32)
 }
 
 struct Cell {
@@ -175,6 +199,8 @@ pub fn import(text: &str) -> Result<Imported, String> {
     let mut doc = Document { pages: vec![], ..Document::default() };
     let mut notes = vec![];
     let root = d.root_element();
+    // a file Naqsha wrote: its containers are Naqsha's, one shape each
+    let ours = root.attribute("host") == Some("Naqsha");
     // collect (name, model-xml-owned)
     let mut diagrams: Vec<(String, String)> = vec![];
     let mut diagram_ids: Vec<Option<String>> = vec![];
@@ -204,6 +230,18 @@ pub fn import(text: &str) -> Result<Imported, String> {
         let cells = parse_model(model);
         let byid: HashMap<&str, &Cell> = cells.iter().map(|c| (c.id.as_str(), c)).collect();
         let root_id = cells.iter().find(|c| c.parent.is_empty()).map(|c| c.id.clone()).unwrap_or_default();
+        // a style colour, following "inherit" up to the parent's
+        let colour = |c: &Cell, k: &str| -> Option<Option<Col>> {
+            let mut cur = c;
+            for _ in 0..8 {
+                let (_, st) = parse_style(&cur.style);
+                match st.get(k).map(|v| v.as_str()) {
+                    Some("inherit") => match byid.get(cur.parent.as_str()) { Some(p) => cur = p, None => return None },
+                    _ => return col(&st, k),
+                }
+            }
+            None
+        };
         let mut page = Page { id: doc.new_id(), name, line_jumps: false, avoid_shapes: false, ..Default::default() };
         if let (Some(w), Some(h)) = (model.attribute("pageWidth").and_then(|v| v.parse::<f32>().ok()), model.attribute("pageHeight").and_then(|v| v.parse::<f32>().ok())) { page.width = w; page.height = h; }
         // layers = children of the root cell
@@ -246,24 +284,61 @@ pub fn import(text: &str) -> Result<Imported, String> {
             let group_parent = byid.get(c.parent.as_str()).filter(|p| p.vertex && parse_style(&p.style).0 == "group").map(|p| p.id.clone());
             if pname == "group" { groups.entry(c.id.clone()).or_insert_with(|| doc.new_id()); continue; }
             let kind = kind_for(&pname, &st);
-            if kind == "rect" && !st.is_empty() && st.contains_key("shape") { unknown_shapes += 1; }
+            let shape_name = st.get("shape").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| pname.to_ascii_lowercase());
+            if kind == "rect" && st.contains_key("shape") && !matches!(shape_name.as_str(), "umlframe" | "partialrectangle" | "table" | "tablerow" | "line" | "waypoint") { unknown_shapes += 1; }
             let id = doc.new_id();
             let mut s = Shape { id, kind: kind.into(), x: ox + x, y: oy + y, w: w.max(4.0), h: h.max(4.0), style: library::default_style(kind), layer, ..Default::default() };
-            s.text = if st.get("html").map_or(false, |v| v == "1") { html_to_text(&c.value) } else { decode_entities(&c.value) };
-            if let Some(v) = col(&st, "fillColor") { s.style.fill = v; }
-            if let Some(v) = col(&st, "strokeColor") { s.style.stroke = v; }
-            if let Some(v) = col(&st, "fontColor") { s.style.text = v; }
+            let html = st.get("html").map_or(false, |v| v == "1");
+            s.text = if html { html_to_text(&c.value) } else { decode_entities(&c.value) };
+            // draw.io's own defaults (white shapes, black lines and text, 1 px, 12 px type), not
+            // Naqsha's theme: the diagram should look the way it did in draw.io
+            let plain = !matches!(kind, "text" | "image");
+            if plain { s.style.fill = Some(BLACK_WHITE.1); s.style.stroke = Some(BLACK_WHITE.0); s.style.width = Some(1.0); }
+            s.style.text = Some(BLACK_WHITE.0);
+            s.style.font_size = Some(12.0);
+            if let Some(v) = colour(&c, "fillColor") { s.style.fill = v; }
+            if let Some(v) = colour(&c, "strokeColor") { s.style.stroke = v; }
+            if let Some(v) = colour(&c, "fontColor") { s.style.text = v; }
             if let Some(v) = st.get("strokeWidth").and_then(|v| v.parse().ok()) { s.style.width = Some(v); }
             if let Some(v) = st.get("fontSize").and_then(|v| v.parse().ok()) { s.style.font_size = Some(v); }
             if let Some(v) = st.get("opacity").and_then(|v| v.parse::<f32>().ok()) { s.style.opacity = Some(v / 100.0); }
             if let Some(v) = st.get("rotation").and_then(|v| v.parse::<f32>().ok()) { s.rot = v.rem_euclid(360.0); }
             if st.get("flipH").map_or(false, |v| v == "1") { s.flip_h = true; }
             if st.get("flipV").map_or(false, |v| v == "1") { s.flip_v = true; }
-            if st.get("dashed").map_or(false, |v| v == "1") { s.style.dash = Dash::Dashed; }
+            s.style.dash = dash(&st);
             if st.get("shadow").map_or(false, |v| v == "1") { s.style.shadow = true; }
             let fs: i32 = st.get("fontStyle").and_then(|v| v.parse().ok()).unwrap_or(0);
             s.style.bold = fs & 1 != 0 || (kind == "container" && fs == 0 && !st.contains_key("fontStyle"));
             s.style.italic = fs & 2 != 0;
+            // formatting inside an HTML label: <b>, <font size/color>, style="font-size: 20px"
+            if html {
+                let look = html_look(&c.value);
+                if look.bold == Some(true) { s.style.bold = true; }
+                if look.italic == Some(true) { s.style.italic = true; }
+                if let Some(z) = look.size { s.style.font_size = Some(z); }
+                if let Some(col) = look.color { s.style.text = Some(col); }
+            }
+            // an AWS 3D stencil: a light dashed placeholder (its colours mean something only to the
+            // stencil: its "edges" are filled black); other stencils stay boxes in their colours
+            if kind == "rect" && shape_name.starts_with("mxgraph.aws3d.") {
+                s.style.fill = Some(Col::NONE);
+                s.style.stroke = Some(Col([160, 160, 170, 255]));
+                s.style.dash = Dash::Dashed;
+            }
+            match shape_name.as_str() {
+                // a UML frame: an outline with its name in the corner
+                "umlframe" => {
+                    if !st.contains_key("fillColor") { s.style.fill = Some(Col::NONE); }
+                    let tab = |k: &str, d: f32| st.get(k).and_then(|v| v.parse::<f32>().ok()).unwrap_or(d);
+                    s.tbox = Some([0.0, 0.0, tab("width", 60.0).max(w * 0.3), tab("height", 30.0)]);
+                }
+                // table cells draw only some of their sides; Naqsha draws all or none
+                // table cells draw only some of their sides; Naqsha draws all or none: none for a
+                // cell with one side, all for a data store (top and bottom)
+                "partialrectangle" if ["top", "left", "right", "bottom"].iter().filter(|k| st.get(**k).map_or(true, |v| v != "0")).count() < 2 => s.style.stroke = Some(Col::NONE),
+                "tablerow" => { if !st.contains_key("fillColor") { s.style.fill = Some(Col::NONE); } if !st.contains_key("strokeColor") { s.style.stroke = Some(Col::NONE); } }
+                _ => {}
+            }
             s.style.align = st.get("align").map(|a| match a.as_str() { "left" => HAlign::Left, "right" => HAlign::Right, _ => HAlign::Center }).or(s.style.align);
             s.style.valign = st.get("verticalAlign").map(|a| match a.as_str() { "top" => VAlign::Top, "bottom" => VAlign::Bottom, _ => VAlign::Middle }).or(s.style.valign);
             if kind == "image" {
@@ -271,6 +346,13 @@ pub fn import(text: &str) -> Result<Imported, String> {
                     // draw.io writes data URIs as data:image/png,BASE64 (no ;base64)
                     if let Some(b64) = img.split_once(',').map(|x| x.1).filter(|_| img.starts_with("data:image")) { s.image = Some(b64.to_string()); } else { s.kind = "rect".into(); s.text = format!("{}\n(linked image)", s.text).trim().to_string(); }
                 }
+            }
+            // padding around the label (a table row's text starts after its ID column)
+            let sp = |k: &str| st.get(k).and_then(|v| v.parse::<f32>().ok());
+            if ["spacingLeft", "spacingRight", "spacingTop", "spacingBottom"].iter().any(|k| sp(k).map_or(false, |v| v > 10.0)) {
+                let base = sp("spacing").unwrap_or(2.0);
+                let (l, r, t, b) = (base + sp("spacingLeft").unwrap_or(0.0), base + sp("spacingRight").unwrap_or(0.0), base + sp("spacingTop").unwrap_or(0.0), base + sp("spacingBottom").unwrap_or(0.0));
+                if l + r < w - 4.0 && t + b < h - 4.0 { s.tbox = Some([l, t, w - l - r, h - t - b]); }
             }
             // labels placed outside the shape
             let vlp = st.get("verticalLabelPosition").map(|s| s.as_str());
@@ -283,6 +365,42 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 s.style.valign = Some(match vlp { Some("top") => VAlign::Bottom, Some("bottom") => VAlign::Top, _ => VAlign::Middle });
                 if lp == Some("left") { s.style.align = Some(HAlign::Right); } else if lp == Some("right") { s.style.align = Some(HAlign::Left); }
             }
+            // a junction dot (shape=waypoint): a small filled circle in the middle of its box
+            if shape_name == "waypoint" {
+                let d = st.get("size").and_then(|v| v.parse::<f32>().ok()).unwrap_or(6.0);
+                let (cx, cy) = s.center();
+                s.kind = "ellipse".into();
+                (s.x, s.y, s.w, s.h) = (cx - d / 2.0, cy - d / 2.0, d, d);
+                let dot = match s.style.fill { Some(f) if f != Col::NONE => f, _ => s.style.stroke.filter(|c| *c != Col::NONE).unwrap_or(BLACK_WHITE.0) };
+                s.style.fill = Some(dot);
+                s.style.stroke = Some(dot);
+            }
+            // text with a fill or an outline is a box with text in it
+            if kind == "text" && [s.style.fill, s.style.stroke].iter().any(|c| c.map_or(false, |c| c != Col::NONE)) { s.kind = "rect".into(); }
+            // a swimlane: the header bar in its fill colour with the title, the body in
+            // swimlaneFillColor (transparent by default, as in draw.io)
+            let mut header: Option<Shape> = None;
+            if kind == "container" && !ours {
+                let start = st.get("startSize").and_then(|v| v.parse::<f32>().ok()).unwrap_or(23.0);
+                let vertical = st.get("horizontal").map_or(false, |v| v == "0");
+                if start > 2.0 && start < (if vertical { s.w } else { s.h }) {
+                    let mut hd = Shape { id: doc.new_id(), kind: "rect".into(), style: s.style.clone(), layer, text: std::mem::take(&mut s.text), ..Default::default() };
+                    hd.style.align = st.get("align").map(|a| match a.as_str() { "left" => HAlign::Left, "right" => HAlign::Right, _ => HAlign::Center }).or(Some(HAlign::Center));
+                    hd.style.valign = Some(VAlign::Middle);
+                    hd.style.shadow = false;
+                    if vertical {
+                        // the header runs down the left side, its title turned to read upwards
+                        (hd.w, hd.h) = (s.h, start);
+                        hd.x = s.x + start / 2.0 - s.h / 2.0;
+                        hd.y = s.y + s.h / 2.0 - start / 2.0;
+                        hd.rot = 270.0;
+                    } else {
+                        (hd.x, hd.y, hd.w, hd.h) = (s.x, s.y, s.w, start);
+                    }
+                    s.style.fill = colour(&c, "swimlaneFillColor").unwrap_or(Some(Col::NONE));
+                    header = Some(hd);
+                }
+            }
             s.data = c.data.clone();
             if let Some(l) = c.link.as_deref().and_then(|l| l.strip_prefix("data:page/id,")) { links.push((id, l.to_string())); }
             if let Some(gp) = group_parent { s.group = Some(*groups.entry(gp).or_insert_with(|| doc.new_id())); }
@@ -290,6 +408,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
             max = (max.0.max(s.x + s.w), max.1.max(s.y + s.h));
             idmap.insert(c.id.clone(), id);
             if library::is_container(&s.kind) { page.shapes.insert(0, s); } else { page.shapes.push(s); }
+            if let Some(mut hd) = header { hd.group = page.shapes.iter().find(|x| x.id == id).and_then(|x| x.group); page.shapes.push(hd); }
         }
         // edges
         for c in cells.iter().filter(|c| c.edge) {
@@ -300,25 +419,67 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 let (x, y) = c.pts.get(pt).copied().unwrap_or((0.0, 0.0));
                 End::Free { x: ox + x, y: oy + y }
             };
+            // draw.io's defaults: black, 1 px, 11 px labels
+            let mut style = Style { stroke: Some(BLACK_WHITE.0), text: Some(BLACK_WHITE.0), width: Some(1.0), font_size: Some(11.0), ..Default::default() };
+            if let Some(v) = colour(c, "strokeColor") { style.stroke = v; }
+            if let Some(v) = colour(c, "fontColor") { style.text = v; }
+            if let Some(v) = st.get("strokeWidth").and_then(|v| v.parse().ok()) { style.width = Some(v); }
+            if let Some(v) = st.get("fontSize").and_then(|v| v.parse().ok()) { style.font_size = Some(v); }
+            style.dash = dash(&st);
             let mut text = if st.get("html").map_or(false, |v| v == "1") { html_to_text(&c.value) } else { decode_entities(&c.value) };
+            let mut look = if st.get("html").map_or(false, |v| v == "1") { html_look(&c.value) } else { Default::default() };
             if text.is_empty() {
-                if let Some(l) = cells.iter().find(|l| l.parent == c.id && l.vertex && !l.value.is_empty()) { text = html_to_text(&l.value); }
+                // the label is its own cell on the edge, with its own size and colour
+                if let Some(l) = cells.iter().find(|l| l.parent == c.id && l.vertex && !l.value.is_empty()) {
+                    let (_, lst) = parse_style(&l.style);
+                    text = html_to_text(&l.value);
+                    // its own style, not the edge's (draw.io doesn't pass the edge's font on)
+                    style.font_size = Some(lst.get("fontSize").and_then(|v| v.parse().ok()).unwrap_or(11.0));
+                    style.text = col(&lst, "fontColor").unwrap_or(Some(BLACK_WHITE.0));
+                    look = html_look(&l.value);
+                }
             }
+            if let Some(z) = look.size { style.font_size = Some(z); }
+            if let Some(col) = look.color { style.text = Some(col); }
+            if look.bold == Some(true) { style.bold = true; }
+            if look.italic == Some(true) { style.italic = true; }
             let routing = match (st.get("edgeStyle").map(|s| s.as_str()), st.get("curved").map(|s| s.as_str())) {
-                (_, Some("1")) => Routing::Curved,
+                // curved through its waypoints; with none, draw.io draws it straight
+                (e, Some("1")) => if c.way.is_empty() && !e.map_or(false, |e| e.contains("orthogonal") || e.contains("elbow")) { Routing::Straight } else { Routing::Curved },
                 (Some(e), _) if e.contains("orthogonal") || e.contains("elbow") || e.contains("entityRelation") || e.contains("isometric") => Routing::Orthogonal,
                 _ => Routing::Straight,
             };
-            let mut style = Style::default();
-            if let Some(v) = col(&st, "strokeColor") { style.stroke = v; }
-            if let Some(v) = col(&st, "fontColor") { style.text = v; }
-            if let Some(v) = st.get("strokeWidth").and_then(|v| v.parse().ok()) { style.width = Some(v); }
-            if let Some(v) = st.get("fontSize").and_then(|v| v.parse().ok()) { style.font_size = Some(v); }
-            if st.get("dashed").map_or(false, |v| v == "1") { style.dash = Dash::Dashed; }
+            // where on the shapes it starts and ends: exitX/exitY and entryX/entryY, or a vertical /
+            // horizontal elbow (org charts leave from the bottom and arrive at the top)
+            let shape_of = |id: &Option<String>| id.as_ref().and_then(|i| idmap.get(i)).and_then(|sid| page.shapes.iter().find(|s| s.id == *sid));
+            let (sa, sb) = (shape_of(&c.source), shape_of(&c.target));
+            let num = |k: &str| st.get(k).and_then(|v| v.parse::<f32>().ok());
+            let elbow = st.get("elbow").map(|v| v.as_str()).filter(|_| routing == Routing::Orthogonal && c.way.is_empty());
+            let way: Vec<(f32, f32)> = c.way.iter().map(|(x, y)| (ox + x, oy + y)).collect();
+            let side = |me: Option<&Shape>, other: Option<&Shape>, fx: Option<f32>, fy: Option<f32>, toward: Option<(f32, f32)>| -> i32 {
+                let Some(me) = me else { return -1 };
+                if let (Some(fx), Some(fy)) = (fx, fy) { return port_near(&me.kind, fx, fy); }
+                // leave toward the nearest waypoint: straight below it → the bottom, and so on
+                if let Some((wx, wy)) = toward.filter(|_| routing == Routing::Orthogonal && me.rot == 0.0) {
+                    let (inx, iny) = (wx >= me.x && wx <= me.x + me.w, wy >= me.y && wy <= me.y + me.h);
+                    let (cx, cy) = me.center();
+                    let vertical = if inx != iny { inx } else { (wy - cy).abs() / me.h.max(1.0) > (wx - cx).abs() / me.w.max(1.0) };
+                    return if vertical { port_near(&me.kind, 0.5, if wy >= cy { 1.0 } else { 0.0 }) } else { port_near(&me.kind, if wx >= cx { 1.0 } else { 0.0 }, 0.5) };
+                }
+                let Some(o) = other else { return -1 };
+                let (d, e) = (o.center().0 - me.center().0, o.center().1 - me.center().1);
+                match elbow {
+                    Some("vertical") => port_near(&me.kind, 0.5, if e >= 0.0 { 1.0 } else { 0.0 }),
+                    Some("horizontal") => port_near(&me.kind, if d >= 0.0 { 1.0 } else { 0.0 }, 0.5),
+                    _ => -1,
+                }
+            };
+            let (pa, pb) = (side(sa, sb, num("exitX"), num("exitY"), way.first().copied()), side(sb, sa, num("entryX"), num("entryY"), way.last().copied()));
+            let glue = |e: End, port: i32| match e { End::Glued { shape, .. } => End::Glued { shape, port }, e => e };
             page.conns.push(Conn {
                 id: doc.new_id(),
-                from: end(&c.source, "sourcePoint"),
-                to: end(&c.target, "targetPoint"),
+                from: glue(end(&c.source, "sourcePoint"), pa),
+                to: glue(end(&c.target, "targetPoint"), pb),
                 routing,
                 style,
                 arrow_start: arrow(st.get("startArrow"), Arrow::None),
@@ -457,4 +618,59 @@ pub fn export(doc: &Document) -> String {
     }
     o.push_str("</mxfile>");
     o
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn page(cells: &str) -> Page {
+        let xml = format!("<mxGraphModel><root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/>{cells}</root></mxGraphModel>");
+        import(&xml).unwrap().doc.pages.remove(0)
+    }
+
+    #[test]
+    fn keeps_the_drawio_look() {
+        let p = page(r#"<mxCell id="a" value="&lt;b&gt;&lt;font style=&quot;font-size: 20px&quot;&gt;Activities&lt;/font&gt;&lt;/b&gt;" style="text;html=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="100" height="40" as="geometry"/></mxCell>
+            <mxCell id="b" value="Box" style="rounded=0;html=1;" vertex="1" parent="1"><mxGeometry x="200" y="0" width="100" height="40" as="geometry"/></mxCell>"#);
+        let (a, b) = (&p.shapes[0], &p.shapes[1]);
+        assert_eq!(a.text, "Activities");
+        assert!(a.style.bold);
+        assert_eq!(a.style.font_size, Some(20.0));
+        // draw.io's defaults, not the theme's
+        assert_eq!(b.style.fill, Some(Col([255, 255, 255, 255])));
+        assert_eq!(b.style.stroke, Some(Col([0, 0, 0, 255])));
+        assert_eq!(b.style.font_size, Some(12.0));
+    }
+
+    #[test]
+    fn connectors_leave_where_drawio_says() {
+        let p = page(r#"<mxCell id="a" value="A" style="rounded=0;" vertex="1" parent="1"><mxGeometry x="100" y="0" width="100" height="40" as="geometry"/></mxCell>
+            <mxCell id="b" value="B" style="rounded=0;" vertex="1" parent="1"><mxGeometry x="0" y="200" width="100" height="40" as="geometry"/></mxCell>
+            <mxCell id="e" style="edgeStyle=orthogonalEdgeStyle;elbow=vertical;dashed=1;dashPattern=1 4;" edge="1" parent="1" source="a" target="b"><mxGeometry relative="1" as="geometry"/></mxCell>
+            <mxCell id="f" style="exitX=1;exitY=0.5;entryX=0;entryY=0.5;curved=1;" edge="1" parent="1" source="a" target="b"><mxGeometry relative="1" as="geometry"/></mxCell>"#);
+        let ports = library::ports("rect");
+        let at = |e: End| match e { End::Glued { port, .. } if port >= 0 => ports[port as usize], _ => (-1.0, -1.0) };
+        // an elbow=vertical org-chart line: out of the bottom, into the top
+        assert_eq!(at(p.conns[0].from), (0.5, 1.0));
+        assert_eq!(at(p.conns[0].to), (0.5, 0.0));
+        assert_eq!(p.conns[0].style.dash, Dash::Dotted);
+        // exitX/entryX, and curved with no waypoints is drawn straight
+        assert_eq!(at(p.conns[1].from), (1.0, 0.5));
+        assert_eq!(at(p.conns[1].to), (0.0, 0.5));
+        assert_eq!(p.conns[1].routing, Routing::Straight);
+    }
+
+    #[test]
+    fn swimlanes_get_a_header() {
+        let p = page(r#"<mxCell id="s" value="Lane" style="swimlane;startSize=30;fillColor=#4D4D4D;swimlaneFillColor=#FFFFFF;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="200" height="120" as="geometry"/></mxCell>
+            <mxCell id="w" style="shape=waypoint;size=6;" vertex="1" parent="1"><mxGeometry x="300" y="0" width="40" height="40" as="geometry"/></mxCell>"#);
+        let lane = p.shapes.iter().find(|s| s.kind == "container").unwrap();
+        let head = p.shapes.iter().find(|s| s.text == "Lane").unwrap();
+        assert_eq!((head.h, lane.text.as_str()), (30.0, ""));
+        assert_eq!(head.style.fill, Some(Col([0x4D, 0x4D, 0x4D, 255])));
+        assert_eq!(lane.style.fill, Some(Col([255, 255, 255, 255])));
+        let dot = p.shapes.iter().find(|s| s.kind == "ellipse").unwrap();
+        assert_eq!((dot.w, dot.x + dot.w / 2.0), (6.0, 320.0));
+    }
 }
