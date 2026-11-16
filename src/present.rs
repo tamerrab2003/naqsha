@@ -9,9 +9,9 @@ use crate::story;
 use egui::*;
 
 /// Seconds the view takes to move to a new step.
-const MOVE: f32 = 0.8;
+pub const MOVE: f32 = 0.8;
 
-fn ease(t: f32) -> f32 { let t = t.clamp(0.0, 1.0); if t < 0.5 { 4.0 * t * t * t } else { 1.0 - (-2.0 * t + 2.0).powi(3) / 2.0 } }
+pub fn ease(t: f32) -> f32 { let t = t.clamp(0.0, 1.0); if t < 0.5 { 4.0 * t * t * t } else { 1.0 - (-2.0 * t + 2.0).powi(3) / 2.0 } }
 
 fn first_step(p: &Page) -> Option<usize> { (!p.story.is_empty()).then_some(0) }
 
@@ -77,7 +77,7 @@ pub fn go(app: &mut App, dir: i32) {
 }
 
 /// What the step frames: its focus items, or the whole page.
-fn target_rect(page: &Page, step: Option<usize>) -> Rect {
+pub fn target_rect(page: &Page, step: Option<usize>) -> Rect {
     let focus = step.and_then(|k| page.story.get(k)).map(|s| s.focus.clone()).unwrap_or_default();
     let mut r: Option<Rect> = None;
     for id in &focus {

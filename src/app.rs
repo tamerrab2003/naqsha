@@ -108,6 +108,8 @@ pub enum Modal {
     NewDiagram,
     /// The template gallery, to add a template to the open diagram rather than start a new one.
     InsertTemplate,
+    /// Export the page's story as a video.
+    Video,
     Pro,
     /// A dialog of the Pro module, by name.
     #[allow(dead_code)]
@@ -189,6 +191,9 @@ pub struct App {
     pub story_step: Option<usize>,
     /// The chosen step playing in the editor (step, when it started), to see its motion.
     pub story_play: Option<(usize, f64)>,
+    /// The choices in the Export Video dialog, and a video being made.
+    pub video_opts: crate::video::Opts,
+    pub video_job: Option<crate::video::Job>,
     /// Live values by tag, from a host such as the Node-RED add-on.
     pub live: HashMap<String, crate::live::Live>,
     /// Page the context menu was opened on (it closes when the page changes).
@@ -237,7 +242,7 @@ impl App {
             doc: Document::default(), pi: 0, sel: vec![], tool: Tool::Pointer, zoom: 1.0, pan: vec2(40.0, 40.0), fit_pending: true, set, path: None, dirty: false,
             undo: vec![], redo: vec![], coalesce: None, drag: Drag::None, hover: None, guides: vec![], glue: None, edit: None, painter_style: None,
             tab: Tab::Home, search: String::new(), images: HashMap::new(), toast: None, modal: None, open_path_pending: None, allow_close: false, renaming: None,
-            last_title: String::new(), recovery, pal: theme::LIGHT, ctx_menu: None, offer_gallery: false, ctx_menu_page: 0, ctx_menu_t: 0.0, stencil_drag: None, canvas_rect: Rect::NOTHING, mouse_world: None, paste_count: 0.0, now: 0.0, imported_name: None, user_lib: vec![], user_lib_loaded: false, thumbs: HashMap::new(), nav: vec![], focus_shape: None, spawn: vec![], picked: vec![], want_close: false, focused: false, menu_queue: vec![], gallery: Gallery::default(), viewer: false, present: None, story_tab: false, story_step: None, story_play: None, live: HashMap::new(),
+            last_title: String::new(), recovery, pal: theme::LIGHT, ctx_menu: None, offer_gallery: false, ctx_menu_page: 0, ctx_menu_t: 0.0, stencil_drag: None, canvas_rect: Rect::NOTHING, mouse_world: None, paste_count: 0.0, now: 0.0, imported_name: None, user_lib: vec![], user_lib_loaded: false, thumbs: HashMap::new(), nav: vec![], focus_shape: None, spawn: vec![], picked: vec![], want_close: false, focused: false, menu_queue: vec![], gallery: Gallery::default(), viewer: false, present: None, story_tab: false, story_step: None, story_play: None, video_opts: Default::default(), video_job: None, live: HashMap::new(),
         }
     }
 

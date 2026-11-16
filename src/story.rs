@@ -241,6 +241,19 @@ pub fn fx(p: &Page, k: Option<usize>, t: f32) -> Fx {
     fx
 }
 
+/// Seconds until a step's motion has played once (items on, items gone, numbers counted, a sent
+/// dot's first trip), so a video can stay on the step at least that long.
+pub fn motion_secs(p: &Page, k: usize) -> f32 {
+    let Some(step) = p.story.get(k) else { return 0.0 };
+    let tl = timeline(p, k);
+    let mut m = tl.end;
+    if !tl.leaving.is_empty() { m = m.max(OUT); }
+    for c in &step.changes {
+        match c.act { Act::Text(_) => m = m.max(COUNT), Act::Alarm => m = m.max(SHAKE), Act::Send => m = m.max(tl.end + TRAVEL), _ => {} }
+    }
+    m
+}
+
 /// Whether anything is still moving at time `t` of a step (sent dots keep going all step).
 pub fn settling(p: &Page, k: usize, t: f32) -> bool {
     let Some(step) = p.story.get(k) else { return false };

@@ -34,6 +34,7 @@ mod scripts;
 mod shell;
 mod story;
 mod present;
+mod video;
 mod subpage;
 mod templates;
 mod theme;
@@ -151,6 +152,7 @@ impl App {
         }
         ui::context_menu(self, &ctx);
         ui::modals(self, &ctx);
+        ui::video_job(self, ui);
         ui::toast(self, &ctx);
         if self.now < 0.6 || self.path.is_some() || self.imported_name.is_some() {
             // give launch-time "open file" events a moment before offering recovered work
@@ -189,7 +191,8 @@ fn icon() -> egui::IconData {
     }
 }
 
-/// `naqsha --export diagram.nqs out.png|svg|pdf|gif [page-number] [--dark]`
+/// `naqsha --export diagram.nqs out.png|svg|pdf|gif|mp4 [page-number] [--dark]`
+/// (mp4: the page's story as a video; `--wide`, `--square` (tall by default), `--title "…"`)
 fn cli_export(args: &[String]) -> Result<(), String> {
     let input = args.get(2).ok_or("missing input file")?;
     let output = args.get(3).ok_or("missing output file")?;
@@ -213,6 +216,7 @@ fn cli_export(args: &[String]) -> Result<(), String> {
             if ext == "gif" && pass == 1 { gif = export::page_gif(Some(&doc), page, &pal, ui.painter(), 24.0, 1.0); }
         }).textures_delta.clear();
     }
+    if ext == "mp4" { return cli_video(&ctx, &doc, page, &pal, args, output); }
     let bytes = match ext {
         "svg" => svg.into_bytes(),
         "gif" => gif?,
@@ -222,6 +226,33 @@ fn cli_export(args: &[String]) -> Result<(), String> {
         e => return Err(format!("unknown format: {e}")),
     };
     std::fs::write(output, bytes).map_err(|e| e.to_string())
+}
+
+/// The page's story as an MP4, for `--export … out.mp4`.
+#[cfg(not(target_arch = "wasm32"))]
+fn cli_video(ctx: &egui::Context, doc: &model::Document, page: &model::Page, pal: &theme::Pal, args: &[String], output: &str) -> Result<(), String> {
+    let format = if args.iter().any(|a| a == "--wide") { video::Format::Wide } else if args.iter().any(|a| a == "--square") { video::Format::Square } else { video::Format::Tall };
+    let title = args.iter().position(|a| a == "--title").and_then(|i| args.get(i + 1)).cloned().unwrap_or_default();
+    let opts = video::Opts { format, title, ..Default::default() };
+    let plan = video::Plan::new(page, &opts);
+    let fonts = export::svg_options();
+    let mut out = video::Mp4Out::create(std::path::Path::new(output), plan.w, plan.h)?;
+    let n = plan.frames();
+    let started = std::time::Instant::now();
+    let mut res: Result<(), String> = Ok(());
+    ctx.run_ui(Default::default(), |ui| {
+        res = (|| {
+            for i in 0..n {
+                let svg = plan.frame_svg(doc, page, pal, ui.painter(), i);
+                out.push(&video::raster(&svg, &fonts, plan.w, plan.h)?)?;
+                if i % 30 == 0 { eprint!("\r{}/{} frames, {:.0}s", i, n, started.elapsed().as_secs_f32()); }
+            }
+            Ok(())
+        })();
+    }).textures_delta.clear();
+    res?;
+    eprintln!("\r{n} frames in {:.1}s", started.elapsed().as_secs_f32());
+    out.finish()
 }
 
 /// The app was called Schemix before: carry its saved settings (recent files, stencil folders,

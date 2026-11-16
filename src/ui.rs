@@ -254,6 +254,7 @@ fn ribbon_file(app: &mut App, ui: &mut Ui, pal: &Pal) {
         if big(ui, pal, "vector", "SVG", "Export current page as SVG").clicked() { do_export(app, ui, "svg"); }
         if big(ui, pal, "pdf", "PDF", "Export current page as PDF").clicked() { do_export(app, ui, "pdf"); }
         if big(ui, pal, "motion", "GIF", "Export current page as an animated GIF (one loop of its animations)").clicked() { do_export(app, ui, "gif"); }
+        if !crate::files::WEB && big(ui, pal, "story", "Video", "Export this page's story as a video (MP4) for TikTok, Reels, YouTube or LinkedIn").clicked() { app.modal = Some(Modal::Video); }
         if big(ui, pal, "export", "Visio", "Export all pages as a Visio drawing (.vsdx)").clicked() { do_export(app, ui, "vsdx"); }
         if big(ui, pal, "export", "draw.io", "Export all pages as a draw.io diagram").clicked() { do_export(app, ui, "drawio"); }
     });
@@ -582,6 +583,7 @@ fn ribbon_view(app: &mut App, ui: &mut Ui, pal: &Pal) {
             if tb(ui, pal, "page", "From This Page", if crate::files::WEB { "Present from the page you're on" } else { "Present from the page you're on (Shift+F5)" }, false).clicked() { let ctx = ui.ctx().clone(); crate::present::start(app, &ctx, Some(0)); }
             let open = app.story_tab && app.set.show_right;
             if tb(ui, pal, "story", "Story", "Write this page's story: the steps it plays when you present", open).clicked() { app.set.show_right = true; app.story_tab = !open; }
+            if !crate::files::WEB && tb(ui, pal, "motion", "Video", "Export this page's story as a video (MP4)", false).clicked() { app.modal = Some(Modal::Video); }
         });
     });
     group(ui, pal, "Animation", |ui| {
@@ -659,6 +661,101 @@ pub fn do_export(app: &mut App, ui: &Ui, ext: &str) {
     };
     let res = bytes.and_then(|b| crate::files::deliver(&path, &b));
     match res { Ok(_) => app.notify(trf("Exported {file}", &[("file", &path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default())])), Err(e) => app.notify(trf("Export failed: {error}", &[("error", &e.to_string())])) }
+}
+
+/// File › Export › Video: the page's story as an MP4, in the shape the video is for. False once closed.
+fn video_dialog(app: &mut App, ctx: &egui::Context) -> bool {
+    use crate::video::Format;
+    let pal = app.pal;
+    let mut open = true;
+    let mut go = false;
+    egui::Modal::new(EId::new("video")).show(ctx, |ui| {
+        ui.set_width(420.0);
+        ui.label(crate::i18n::rich(tr("Export Video"), 16.0, None, true));
+        ui.add_space(2.0);
+        let page = app.page();
+        let n = page.story.len();
+        let plan = crate::video::Plan::new(page, &app.video_opts);
+        let about = if n == 0 { tr("This page has no story yet, so the video shows it as it is. Write one in the Story pane (View › Story).").to_string() }
+            else { trf("Plays this page's story: {n} steps, about {s} seconds.", &[("n", &n.to_string()), ("s", &(plan.total.round() as i32).to_string())]) };
+        ui.label(crate::i18n::rich(about, 12.0, Some(pal.muted), false));
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            for (f, name, use_for, (w, h)) in [(Format::Tall, "Tall · 9:16", "TikTok, Reels, Shorts", (18.0, 32.0)), (Format::Wide, "Wide · 16:9", "YouTube, LinkedIn", (40.0, 22.5)), (Format::Square, "Square · 1:1", "Posts in a feed", (28.0, 28.0))] {
+                let on = app.video_opts.format == f;
+                let (r, resp) = ui.allocate_exact_size(vec2(128.0, 92.0), Sense::click());
+                let p = ui.painter();
+                p.rect(r, 8.0, if on { with_alpha(pal.accent, 0.10) } else if resp.hovered() { pal.hover } else { Color32::TRANSPARENT }, Stroke::new(if on { 1.5 } else { 1.0 }, if on { pal.accent } else { pal.border }), StrokeKind::Inside);
+                let box_r = Rect::from_center_size(pos2(r.center().x, r.min.y + 26.0), vec2(w, h));
+                p.rect(box_r, 3.0, with_alpha(pal.accent, if on { 0.25 } else { 0.10 }), Stroke::new(1.0, if on { pal.accent } else { pal.muted }), StrokeKind::Inside);
+                crate::i18n::text(p, pos2(r.center().x, r.min.y + 56.0), Align2::CENTER_CENTER, tr(name), FontId::proportional(12.5), if on { pal.accent } else { pal.text });
+                crate::i18n::text(p, pos2(r.center().x, r.min.y + 74.0), Align2::CENTER_CENTER, tr(use_for), FontId::proportional(10.5), pal.muted);
+                if resp.clicked() { app.video_opts.format = f; }
+            }
+        });
+        ui.add_space(10.0);
+        ui.add(egui::TextEdit::singleline(&mut app.video_opts.title).desired_width(f32::INFINITY).hint_text(t("Title across the top (optional)")));
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            ui.label(t("Each step at least"));
+            ui.add(egui::DragValue::new(&mut app.video_opts.step_secs).range(1.5..=20.0).speed(0.1).suffix(tr(" s")));
+        });
+        ui.checkbox(&mut app.video_opts.mark, t("“Made with Naqsha” in the corner"));
+        ui.add_space(12.0);
+        ui.horizontal(|ui| {
+            ui.with_layout(crate::i18n::end_layout(Align::Center), |ui| {
+                if ui.add(egui::Button::new(crate::i18n::rich(tr("Export…"), 12.5, Some(Color32::WHITE), false)).fill(pal.accent)).clicked() { go = true; }
+                if ui.button(t("Cancel")).clicked() { open = false; }
+            });
+        });
+    });
+    if go {
+        open = false;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let name = format!("{} - {}.mp4", app.title(), app.page().name);
+            if let Some(path) = rfd::FileDialog::new().add_filter("MP4", &["mp4"]).set_file_name(&name).save_file() {
+                match crate::video::Job::start(&app.doc, app.pi, app.pal, &app.video_opts, path) {
+                    Ok(j) => app.video_job = Some(j),
+                    Err(e) => app.notify(trf("Export failed: {error}", &[("error", &e)])),
+                }
+            }
+        }
+    }
+    open
+}
+
+/// A video being made: a few more frames, and how far along it is.
+pub fn video_job(app: &mut App, ui: &mut Ui) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let muted = app.pal.muted;
+        let Some(job) = app.video_job.as_mut() else { return };
+        let ctx = ui.ctx().clone();
+        let res = job.work(ui.painter(), std::time::Duration::from_millis(60));
+        let (p, path, secs) = (job.progress(), job.path.clone(), job.plan.total);
+        let mut cancel = false;
+        egui::Modal::new(EId::new("video-job")).show(&ctx, |ui| {
+            ui.set_width(360.0);
+            ui.label(crate::i18n::rich(tr("Making the video…"), 15.0, None, true));
+            ui.add_space(4.0);
+            let name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            ui.label(crate::i18n::rich(format!("{name} · {} s", secs.round() as i32), 12.0, Some(muted), false));
+            ui.add_space(8.0);
+            ui.add(egui::ProgressBar::new(p).show_percentage());
+            ui.add_space(8.0);
+            ui.with_layout(crate::i18n::end_layout(Align::Center), |ui| { if ui.button(t("Cancel")).clicked() { cancel = true; } });
+        });
+        match res {
+            _ if cancel => { if let Some(j) = app.video_job.take() { j.cancel(); } app.notify(tr("Video export cancelled")); }
+            Ok(true) => { app.video_job = None; app.notify(trf("Exported {file}", &[("file", &path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default())])); }
+            Ok(false) => ctx.request_repaint(),
+            Err(e) => { if let Some(j) = app.video_job.take() { j.cancel(); } app.notify(trf("Export failed: {error}", &[("error", &e)])); }
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    { let _ = (app, ui); }
 }
 
 // ------------------------------------------------------------------ shapes panel
@@ -1437,6 +1534,7 @@ pub fn modals(app: &mut App, ctx: &egui::Context) {
     match &m {
         Modal::NewDiagram => { if !gallery(app, ctx, false) { keep = false; } }
         Modal::InsertTemplate => { if !gallery(app, ctx, true) { keep = false; } }
+        Modal::Video => { if !video_dialog(app, ctx) { keep = false; } }
         Modal::Unsaved(p) => {
             let p = *p;
             egui::Modal::new(EId::new("unsaved")).show(ctx, |ui| {
@@ -1766,7 +1864,8 @@ pub fn menu_command(app: &mut App, ui: &mut Ui, id: &str) {
         "dist:h" => app.distribute(true),
         "dist:v" => app.distribute(false),
         _ => {
-            if let Some(k) = id.strip_prefix("export:") { do_export(app, ui, k); }
+            if id == "export:video" { app.modal = Some(Modal::Video); }
+            else if let Some(k) = id.strip_prefix("export:") { do_export(app, ui, k); }
             else if let Some(n) = id.strip_prefix("align:").and_then(|n| n.parse::<u8>().ok()) { app.align(n); }
             else if let Some(k) = id.strip_prefix("insert:") {
                 let c = app.view_center_world();

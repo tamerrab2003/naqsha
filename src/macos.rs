@@ -110,6 +110,7 @@ pub fn install_menu(recent: &[String]) -> Option<Box<dyn std::any::Any>> {
         &item("export:png", "PNG Image…", cmd_shift(Code::KeyE)),
         &item("export:svg", "SVG…", None),
         &item("export:pdf", "PDF…", None),
+        &item("export:video", "Video of the Story…", None),
         &sep(),
         &item("export:vsdx", "Microsoft Visio (.vsdx)…", None),
         &item("export:drawio", "draw.io (.drawio)…", None),

@@ -9,7 +9,7 @@ use egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Shape as EShape};
 use std::collections::HashMap;
 use std::fmt::Write;
 
-fn col(c: Color32) -> String {
+pub fn col(c: Color32) -> String {
     let [r, g, b, a] = c.to_srgba_unmultiplied();
     if a == 255 { format!("#{r:02x}{g:02x}{b:02x}") } else { format!("rgba({r},{g},{b},{:.3})", a as f32 / 255.0) }
 }
@@ -19,7 +19,7 @@ fn path_d(pts: &[Pos2], closed: bool) -> String {
     if closed { s.push('Z'); }
     s
 }
-fn esc(t: &str) -> String { t.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;") }
+pub fn esc(t: &str) -> String { t.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;") }
 fn dash_attr(d: Dash, w: f32) -> String {
     match d { Dash::Solid => String::new(), Dash::Dashed => format!(" stroke-dasharray=\"{:.1} {:.1}\"", w * 4.0 + 3.0, w * 2.5 + 2.0), Dash::Dotted => format!(" stroke-dasharray=\"{:.1} {:.1}\" stroke-linecap=\"round\"", w.max(1.0), w * 2.0 + 1.5) }
 }
@@ -62,7 +62,7 @@ fn script_runs(text: &str, base: &str) -> String {
 }
 
 /// Convert egui shapes we emit for text / labels / heads into SVG.
-fn eshape_svg(out: &mut String, sh: &EShape) {
+pub fn eshape_svg(out: &mut String, sh: &EShape) {
     match sh {
         EShape::Text(t) => {
             let ang = t.angle.to_degrees();
@@ -143,7 +143,7 @@ fn shape_css(s: &Shape, i: usize, pal: &crate::theme::Pal) -> (String, String) {
 /// Shapes and connectors of a page as SVG elements (world coordinates). With `css`, animated
 /// items get CSS animations (their keyframes are added to `css`); otherwise each is drawn at
 /// `cx.time`.
-fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32, mut css: Option<&mut String>) {
+pub fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32, mut css: Option<&mut String>, fx: Option<&crate::story::Fx>) {
     let pal = cx.pal;
     for (si, s0) in page.shapes.iter().enumerate().filter(|(_, s)| page.shape_shown(s)) {
         // the shape as it stands at this moment (text is drawn from the unmoved shape)
@@ -204,7 +204,7 @@ fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32, mut css:
                 if let Some((content, k, at)) = geom::preview_fit(s, sub) {
                     let _ = write!(o, "<g transform=\"translate({:.2} {:.2}) scale({:.5}) translate({:.2} {:.2})\">", at.x, at.y, k, -content.min.x, -content.min.y);
                     let sub_cx = Ctx { depth: cx.depth + 1, time: cx.time.or(Some(0.0)), ..*cx };
-                    write_items(o, &sub_cx, sub, fill, None);
+                    write_items(o, &sub_cx, sub, fill, None, None);
                     o.push_str("</g>");
                 }
             }
@@ -213,8 +213,19 @@ fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32, mut css:
         if !render::label_drawn_last(s0) { for t in render::text_shapes(cx, s0) { eshape_svg(o, &t); } }
         o.push_str("</g>");
     }
+    let mut dots = String::new();
     for (ci, route) in render::page_routes(page) {
         let c = &page.conns[ci];
+        // a story video: a dot sent along it, or it is still drawing itself (label after)
+        if let Some((_, f)) = fx.and_then(|fx| fx.dots.iter().find(|d| d.0 == c.id)) {
+            let p = anim::point_at(&route, *f);
+            let dc = c.style.anim_color.map(crate::theme::to_c32).unwrap_or(pal.accent);
+            let r = c.style.width.unwrap_or(1.5) * 1.6 + 4.0;
+            for (k, a) in [(2.2, 0.18), (1.45, 0.35), (1.0, 1.0)] { let _ = write!(dots, "<circle cx=\"{:.2}\" cy=\"{:.2}\" r=\"{:.2}\" fill=\"{}\"/>", p.x, p.y, r * k, col(render::with_alpha(dc, a))); }
+            let _ = write!(dots, "<circle cx=\"{:.2}\" cy=\"{:.2}\" r=\"{:.2}\" fill=\"rgba(255,255,255,0.9)\"/>", p.x, p.y, r * 0.45);
+        }
+        let drawing = fx.and_then(|fx| fx.reveal.get(&c.id)).copied();
+        let route = match drawing { Some(f) if f <= 0.002 => continue, Some(f) => anim::cut(&route, f), None => route };
         let mut out = vec![];
         let a = c.style.anim;
         let blink = css.is_some() && a == Anim::Blink;
@@ -254,9 +265,10 @@ fn write_items(o: &mut String, cx: &Ctx, page: &Page, page_bg: Color32, mut css:
             let (pattern, width, cap) = if a == Anim::Flow { let (d, g) = anim::flow_dash(sw); (format!("{d:.2} {g:.2}"), sw, "butt") } else { let (gap, r) = anim::dot_spacing(sw); (format!("0 {gap:.2}"), r * 2.0, "round") };
             let _ = write!(o, "<path d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{width:.2}\" stroke-linecap=\"{cap}\" stroke-linejoin=\"round\" stroke-dasharray=\"{pattern}\" style=\"animation:{name} {:.2}s linear infinite\"/>", path_d(&route, false), col(moving), anim::period(&c.style));
         }
-        for sh in render::conn_label(cx, c, &route, page_bg) { eshape_svg(o, &sh); }
+        if drawing.is_none() { for sh in render::conn_label(cx, c, &route, page_bg) { eshape_svg(o, &sh); } }
         if blink { o.push_str("</g>"); }
     }
+    o.push_str(&dots);
     for s in page.shapes.iter().filter(|s| page.shape_shown(s) && render::label_drawn_last(s)) {
         for sh in render::masked_label(cx, s, page_bg) { eshape_svg(o, &sh); }
     }
@@ -312,7 +324,7 @@ pub fn page_svg_with(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &P
     let cx = Ctx { painter, view: View { origin: Pos2::ZERO, pan: egui::Vec2::ZERO, zoom: 1.0 }, pal, images: &empty, doc, depth: 0, time };
     let mut rules = String::new();
     let mut items = String::new();
-    write_items(&mut items, &cx, page, page_bg, if motion == Motion::Css { Some(&mut rules) } else { None });
+    write_items(&mut items, &cx, page, page_bg, if motion == Motion::Css { Some(&mut rules) } else { None }, None);
     if !rules.is_empty() {
         // viewers that don't animate (or people who asked for less motion) see the still picture
         let _ = write!(o, "<style>@media (prefers-reduced-motion: reduce){{*{{animation:none!important}}}}{rules}</style>");
@@ -373,6 +385,16 @@ pub fn page_gif(doc: Option<&Document>, page: &Page, pal: &Pal, painter: &Painte
 /// Parse an SVG made by this module (with the fonts used for export).
 #[cfg_attr(not(feature = "pro"), allow(dead_code))]
 pub fn svg_tree(svg: &str) -> Result<resvg::usvg::Tree, String> { tree(svg) }
+
+/// SVG options with the export fonts loaded, to parse many SVGs (video frames) without loading
+/// the fonts again each time.
+pub fn svg_options() -> resvg::usvg::Options<'static> {
+    let mut opt = resvg::usvg::Options::default();
+    load_fonts(opt.fontdb_mut());
+    opt
+}
+
+pub const SHADOW_DEFS: &str = "<defs><filter id=\"sh\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"150%\"><feDropShadow dx=\"0\" dy=\"4\" stdDeviation=\"3.5\" flood-color=\"#000\" flood-opacity=\"0.22\"/></filter></defs>";
 
 fn tree(svg: &str) -> Result<resvg::usvg::Tree, String> {
     let mut opt = resvg::usvg::Options::default();
