@@ -835,11 +835,20 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
     let z = v.zoom;
     // the story step on show (presenting) or chosen in the Story pane (writing the story)
     let accent = { let a = pal.accent; Col([a.r(), a.g(), a.b(), 255]) };
-    let story_page = match &app.present {
-        Some(p) => crate::story::apply(app.page(), p.step, crate::story::Mode::Play { t: (app.now - p.since) as f32 }, accent),
-        None if app.story_tab && app.set.show_right => crate::story::apply(app.page(), app.story_step, crate::story::Mode::Preview, accent),
+    let writing = app.story_tab && app.set.show_right;
+    // the step playing: presenting, or played in the editor to see its motion
+    let playing = match (&app.present, app.story_play) {
+        (Some(p), _) => Some((p.step, (app.now - p.since) as f32)),
+        (None, Some((k, since))) if writing && app.story_step == Some(k) && app.now - since < crate::story::PREVIEW_SECS as f64 => Some((Some(k), (app.now - since) as f32)),
+        _ => None,
+    };
+    if playing.is_some() && app.present.is_none() { ui.ctx().request_repaint(); }
+    let story_page = match playing {
+        Some((k, t)) => crate::story::apply(app.page(), k, crate::story::Mode::Play { t }, accent),
+        None if writing => crate::story::apply(app.page(), app.story_step, crate::story::Mode::Preview, accent),
         None => std::borrow::Cow::Borrowed(app.page()),
     };
+    let fx = playing.map(|(k, t)| crate::story::fx(app.page(), k, t)).unwrap_or_default();
     let live_page = crate::live::apply(&story_page, &app.live);
     let page: &Page = &live_page;
     let page_bg = page.bg.map(to_c32).unwrap_or(pal.page);
@@ -894,9 +903,26 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
         if !page.shape_shown(s) || !geom::bbox(s).intersects(vis_world) { continue; }
         render::draw_shape(&cx, &mut out, s, editing != Some((s.id, false)) && !render::label_drawn_last(s));
     }
+    let mut dots: Vec<(Pos2, Color32, f32)> = vec![];
     for (ci, route) in render::page_routes(page) {
         let c = &page.conns[ci];
-        render::draw_conn(&cx, &mut out, c, route, page_bg, editing != Some((c.id, true)));
+        if let Some((_, f)) = fx.dots.iter().find(|d| d.0 == c.id) {
+            let col = c.style.anim_color.map(to_c32).unwrap_or(pal.accent);
+            dots.push((v.s(crate::anim::point_at(&route, *f)), col, c.style.width.unwrap_or(1.5)));
+        }
+        // a connector coming on draws itself from start to end
+        // (its label waits until it's drawn)
+        let drawing = fx.reveal.get(&c.id).copied();
+        let route = match drawing { Some(f) if f <= 0.002 => continue, Some(f) => crate::anim::cut(&route, f), None => route };
+        render::draw_conn(&cx, &mut out, c, route, page_bg, editing != Some((c.id, true)) && drawing.is_none());
+    }
+    // dots sent along connectors: a soft halo and a bright core
+    for (p, col, w) in dots {
+        let r = (w * 1.6 + 4.0) * z;
+        out.push(EShape::circle_filled(p, r * 2.2, col.gamma_multiply(0.18)));
+        out.push(EShape::circle_filled(p, r * 1.45, col.gamma_multiply(0.35)));
+        out.push(EShape::circle_filled(p, r, col));
+        out.push(EShape::circle_filled(p, r * 0.45, Color32::from_white_alpha(230)));
     }
     for s in page.shapes.iter().filter(|s| render::label_drawn_last(s) && editing != Some((s.id, false))) {
         if !page.shape_shown(s) || !geom::bbox(s).expand(60.0).intersects(vis_world) { continue; }
@@ -907,7 +933,7 @@ fn paint(app: &mut App, ui: &Ui, painter: &egui::Painter, v: &View, crect: Rect)
 
     // ---------------- sub-diagram badges
     let hp = ui.input(|i| i.pointer.hover_pos());
-    for s in page.shapes.iter().filter(|s| page.shape_shown(s) && badge_visible(s, z)) {
+    for s in page.shapes.iter().filter(|s| page.shape_shown(s) && badge_visible(s, z) && s.style.opacity.unwrap_or(1.0) >= 0.5) {
         let Some(target) = app.doc.linked_page(s) else { continue };
         let c = v.s(App::link_badge_pos(s, z));
         if !crect.contains(c) { continue; }

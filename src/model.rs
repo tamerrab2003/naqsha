@@ -218,6 +218,20 @@ pub enum Act {
     Normal,
     /// Shows this text instead of its own.
     Text(String),
+    /// During this step a dot travels along it (a shape: along the connectors leaving it).
+    Send,
+}
+
+/// How a step's new items come on while presenting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum Enter {
+    /// Shapes grow in with a little bounce; connectors draw themselves from start to end.
+    #[default]
+    Pop,
+    /// Shapes rise into place; connectors draw themselves.
+    Rise,
+    /// Everything fades in.
+    Fade,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -238,6 +252,10 @@ pub struct Step {
     pub focus: Vec<Id>,
     /// Seconds before the next step comes by itself; 0 waits for a click or key.
     pub auto: f32,
+    /// How new items come on.
+    pub enter: Enter,
+    /// New items come on all at once instead of one after another.
+    pub together: bool,
 }
 
 impl Step {

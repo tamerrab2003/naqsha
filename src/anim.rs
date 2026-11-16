@@ -106,6 +106,26 @@ pub fn dashes(pts: &[Pos2], on: f32, off: f32, offset: f32) -> Vec<Vec<Pos2>> {
     out
 }
 
+fn length(pts: &[Pos2]) -> f32 { pts.windows(2).map(|w| (w[1] - w[0]).length()).sum() }
+
+/// The first `f` (0..1) of a polyline, by length.
+pub fn cut(pts: &[Pos2], f: f32) -> Vec<Pos2> {
+    let mut left = length(pts) * f.clamp(0.0, 1.0);
+    let mut out = vec![];
+    for w in pts.windows(2) {
+        if out.is_empty() { out.push(w[0]); }
+        let len = (w[1] - w[0]).length();
+        if len >= left { if len > 1e-6 { out.push(w[0] + (w[1] - w[0]) * (left / len)); } break; }
+        out.push(w[1]);
+        left -= len;
+    }
+    if out.len() < 2 { if let Some(p) = pts.first() { out = vec![*p, *p]; } }
+    out
+}
+
+/// The point `f` (0..1) of the way along a polyline.
+pub fn point_at(pts: &[Pos2], f: f32) -> Pos2 { cut(pts, f).last().copied().unwrap_or(Pos2::ZERO) }
+
 /// Centres of the moving dots along a polyline.
 pub fn dots(pts: &[Pos2], spacing: f32, offset: f32) -> Vec<Pos2> {
     let mut out = vec![];
@@ -143,6 +163,16 @@ mod tests {
         let l = [pos2(0.0, 0.0), pos2(25.0, 0.0), pos2(25.0, 50.0)];
         let d = dashes(&l, 10.0, 10.0, 0.0);
         assert_eq!(d[1].len(), 3, "{:?}", d[1]);
+    }
+
+    #[test]
+    fn cutting_a_line() {
+        let l = [pos2(0.0, 0.0), pos2(10.0, 0.0), pos2(10.0, 30.0)];
+        assert_eq!(cut(&l, 1.0).len(), 3);
+        let half = cut(&l, 0.5);
+        assert_eq!(half.len(), 3);
+        assert!((half[2].y - 10.0).abs() < 1e-3);
+        assert!((point_at(&l, 0.1).x - 4.0).abs() < 1e-3);
     }
 
     #[test]

@@ -214,16 +214,16 @@ fn cicd() -> Document {
     let nf = b.c(prod, notify, "");
     // a story to present (View › Present): the change travels through the stages one by one
     let ch = |ids: &[Id], act: Act| ids.iter().map(|id| Change { id: *id, act: act.clone() }).collect::<Vec<_>>();
-    let step = |caption: &str, changes: Vec<Change>, spot: Vec<Id>, focus: Vec<Id>| Step { caption: caption.into(), changes, dim: !spot.is_empty(), spot, focus, auto: 0.0 };
+    let step = |caption: &str, changes: Vec<Change>, spot: Vec<Id>, focus: Vec<Id>| Step { caption: caption.into(), changes, dim: !spot.is_empty(), spot, focus, auto: 0.0, ..Default::default() };
     b.story(vec![
-        step("A push or pull request starts the pipeline", [ch(&[stage[0], trig, checkout, build, unit], Act::Show), ch(&[c[0]], Act::Run)].concat(), vec![], vec![trig, stage[0]]),
-        step("Build: check out the code, compile it, run the unit tests", ch(&[c[1], c[2]], Act::Run), vec![checkout, build, unit], vec![trig, stage[0]]),
+        step("A push or pull request starts the pipeline", [ch(&[stage[0], trig, checkout, build, unit], Act::Show), ch(&[c[0]], Act::Run), ch(&[trig], Act::Send)].concat(), vec![], vec![trig, stage[0]]),
+        step("Build: check out the code, compile it, run the unit tests", [ch(&[c[1], c[2]], Act::Run), ch(&[checkout, build], Act::Send), vec![Change { id: unit, act: Act::Text("Unit tests\n1,248 passed".into()) }]].concat(), vec![checkout, build, unit], vec![trig, stage[0]]),
         step("Verify: scan the code and its dependencies, run the integration tests", [ch(&[stage[1], sast, it, gate], Act::Show), ch(&[c[3], c[4], c[5]], Act::Run)].concat(), vec![], vec![stage[0], stage[1]]),
-        step("The quality gate stops anything under 80% test coverage", vec![], vec![gate], vec![stage[1]]),
+        step("The quality gate stops anything under 80% test coverage", ch(&[c[5]], Act::Send), vec![gate], vec![stage[1]]),
         step("Package: build the container image, push it, tag the release", [ch(&[stage[2], image, reg, rel], Act::Show), ch(&[c[6], c[7], c[8]], Act::Run)].concat(), vec![], vec![stage[1], stage[2]]),
         step("Release: deploy to staging, run smoke tests, then a person approves", [ch(&[stage[3], stg, smoke, appr, prod], Act::Show), ch(&[c[9], c[10], c[11], c[12]], Act::Run)].concat(), vec![], vec![stage[2], stage[3]]),
         step("If the production deploy fails, it rolls back and tells the team", [ch(&[rollback, notify], Act::Show), ch(&[prod], Act::Alarm), ch(&[f, nf], Act::Run)].concat(), vec![], vec![stage[3]]),
-        step("Every push, from commit to production, the same way every time", [ch(&[prod], Act::Normal), ch(&c, Act::Run)].concat(), vec![], vec![]),
+        step("Every push, from commit to production, the same way every time", [ch(&[prod], Act::Normal), ch(&c, Act::Run), ch(&c, Act::Send)].concat(), vec![], vec![]),
     ]);
     // the production deploy job has its own page of steps
     let main = b.cur;

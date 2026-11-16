@@ -1864,7 +1864,12 @@ fn story_pane(app: &mut App, ui: &mut Ui, pal: &Pal) {
     let sel = app.sel.clone();
     let m = sel.len();
     section(ui, pal, &trf("Step {n}", &[("n", &(k + 1).to_string())]), |ui| {
-        ui.label(crate::i18n::rich(tr("Caption"), 11.5, Some(pal.muted), false));
+        ui.horizontal(|ui| {
+            ui.label(crate::i18n::rich(tr("Caption"), 11.5, Some(pal.muted), false));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui.small_button(format!("▶ {}", tr("Play Step"))).on_hover_text(t("See this step's motion here, without going full screen")).clicked() { app.story_play = Some((k, app.now)); }
+            });
+        });
         let mut cap = app.page().story[k].caption.clone();
         if ui.add(egui::TextEdit::multiline(&mut cap).desired_rows(2).desired_width(f32::INFINITY).hint_text(t("What to say at this step"))).changed() { app.checkpoint_key("story-caption"); app.page_mut().story[k].caption = cap; }
         ui.add_space(6.0);
@@ -1886,6 +1891,10 @@ fn story_pane(app: &mut App, ui: &mut Ui, pal: &Pal) {
             }
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
+                if ui.add_sized([bw, 24.0], egui::Button::new(t("Send")).truncate()).on_hover_text(t("A dot travels along them during this step (from a shape: along the connectors leaving it)")).clicked() {
+                    app.checkpoint();
+                    for id in &sel { crate::story::set_change(&mut app.page_mut().story[k], *id, Act::Send); }
+                }
                 if ui.add_sized([bw, 24.0], egui::Button::new(t("Spotlight")).truncate()).on_hover_text(t("They glow during this step, to point at them")).clicked() { app.checkpoint(); app.page_mut().story[k].spot = sel.clone(); }
                 if ui.add_sized([bw, 24.0], egui::Button::new(t("Frame")).truncate()).on_hover_text(t("The view moves to show just them")).clicked() { app.checkpoint(); app.page_mut().story[k].focus = sel.clone(); }
             });
@@ -1929,6 +1938,16 @@ fn story_pane(app: &mut App, ui: &mut Ui, pal: &Pal) {
                 if ui.add(egui::DragValue::new(&mut s).range(0.5..=60.0).speed(0.1).suffix(" s")).changed() { app.checkpoint_key("story-auto"); app.page_mut().story[k].auto = s; }
             }
         });
+        // how new items come on
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.label(crate::i18n::rich(tr("New items:"), 12.0, None, false));
+            for (e, l, tip) in [(Enter::Pop, "Pop", "Shapes grow in with a little bounce; connectors draw themselves"), (Enter::Rise, "Rise", "Shapes rise into place; connectors draw themselves"), (Enter::Fade, "Fade", "Everything fades in")] {
+                if ui.selectable_label(st.enter == e, t(l)).on_hover_text(t(tip)).clicked() && st.enter != e { app.checkpoint(); app.page_mut().story[k].enter = e; app.story_play = Some((k, app.now)); }
+            }
+        });
+        let mut one = !st.together;
+        if ui.checkbox(&mut one, t("One after another")).on_hover_text(t("Off: they all come on at once")).changed() { app.checkpoint(); app.page_mut().story[k].together = !one; app.story_play = Some((k, app.now)); }
         // what this step changes
         if !st.changes.is_empty() {
             ui.add_space(6.0);

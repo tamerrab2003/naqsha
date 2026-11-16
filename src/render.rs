@@ -74,13 +74,12 @@ pub fn shape_text_color(s: &Shape, pal: &Pal) -> Color32 {
     let dark_ink = Color32::from_rgb(0x1A, 0x1A, 0x2E);
     let light_ink = Color32::from_rgb(0xF2, 0xF2, 0xF8);
     let best = if contrast(dark_ink, bg) >= contrast(light_ink, bg) { dark_ink } else { light_ink };
-    match s.style.text {
-        Some(c) => {
-            let c = with_alpha(to_c32(c), s.style.opacity.unwrap_or(1.0));
-            if contrast(over(c, bg), bg) < 1.6 { best } else { c }
-        }
+    let c = match s.style.text {
+        Some(c) => { let c = to_c32(c); if contrast(over(c, bg), bg) < 1.6 { best } else { c } }
         None => if contrast(pal.shape_text, bg) >= 3.0 { pal.shape_text } else { best },
-    }
+    };
+    // the text fades with its shape
+    with_alpha(c, s.style.opacity.unwrap_or(1.0))
 }
 
 pub fn fill_poly(mesh: &mut Mesh, pts: &[Pos2], color: Color32) {
@@ -324,7 +323,7 @@ pub fn masked_label(cx: &Ctx, s: &Shape, bg: Color32) -> Vec<EShape> {
     for t in &text {
         if let EShape::Text(ts) = t {
             let r = Rect::from_min_size(ts.pos, ts.galley.size()).expand(2.0 * cx.view.zoom);
-            out.push(EShape::rect_filled(r, 2.0 * cx.view.zoom, bg));
+            out.push(EShape::rect_filled(r, 2.0 * cx.view.zoom, with_alpha(bg, s.style.opacity.unwrap_or(1.0))));
         }
     }
     out.extend(text);
@@ -520,11 +519,12 @@ pub fn conn_label(cx: &Ctx, c: &Conn, pts_w: &[Pos2], page_bg: Color32) -> Vec<E
     let v = cx.view;
     let z = v.zoom;
     let fs = c.style.font_size.unwrap_or(12.0) * z;
-    let tc = c.style.text.map(to_c32).unwrap_or(cx.pal.shape_text);
+    let o = c.style.opacity.unwrap_or(1.0);
+    let tc = with_alpha(c.style.text.map(to_c32).unwrap_or(cx.pal.shape_text), o);
     let g = layout(cx.painter, &c.text, fs, c.style.bold, c.style.italic, tc, 220.0 * z, Align::Center);
     let mid = v.s(geom::poly_mid(pts_w));
     let r = Rect::from_center_size(mid, g.rect.size() + vec2(8.0, 4.0) * z);
-    out.push(EShape::rect_filled(r, 3.0 * z, page_bg));
+    out.push(EShape::rect_filled(r, 3.0 * z, with_alpha(page_bg, o)));
     place_text(&mut out, g, r, HAlign::Center, VAlign::Middle, mid, 0.0, tc);
     out
 }
