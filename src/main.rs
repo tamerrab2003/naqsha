@@ -216,6 +216,7 @@ fn cli_export(args: &[String]) -> Result<(), String> {
             if ext == "gif" && pass == 1 { gif = export::page_gif(Some(&doc), page, &pal, ui.painter(), 24.0, 1.0); }
         }).textures_delta.clear();
     }
+    #[cfg(not(target_arch = "wasm32"))]
     if ext == "mp4" { return cli_video(&ctx, &doc, page, &pal, args, output); }
     let bytes = match ext {
         "svg" => svg.into_bytes(),

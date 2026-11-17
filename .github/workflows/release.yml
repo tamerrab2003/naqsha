@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     container: almalinux:8
     steps:
-      - run: dnf -y install gcc binutils git tar gzip findutils
+      - run: dnf -y install gcc gcc-c++ binutils git tar gzip findutils
       - uses: actions/checkout@v4
         with:
           # Naqsha Pro lives in a private repository: PRO_REPO_TOKEN is a fine-grained token with
