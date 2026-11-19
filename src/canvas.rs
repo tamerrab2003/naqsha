@@ -196,6 +196,9 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
             app.pan += scroll;
         }
     }
+    // two fingers on a touch screen: pinch zooms (above), moving them pans the page
+    let two_fingers = ui.input(|i| i.multi_touch()).filter(|_| resp.hovered() || resp.dragged() || resp.contains_pointer());
+    if let Some(mt) = &two_fingers { app.pan += mt.translation_delta; }
     let view = View { origin: crect.min, pan: app.pan, zoom: app.zoom };
     if app.viewer || app.present.is_some() {
         viewer_input(app, ui, &resp, &view);
@@ -234,8 +237,15 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
         app.hover = match ptr { Some(p) if crect.contains(p) => hover_shape(app, &view, p), _ => None };
     }
 
+    // a second finger turns whatever the first one started into a pan or pinch: put it back
+    if two_fingers.is_some() && !matches!(app.drag, Drag::None) {
+        cancel_drag(app);
+        app.drag = Drag::None;
+        app.guides.clear();
+    }
+
     // ---------------- drag start
-    if resp.drag_started() {
+    if resp.drag_started() && two_fingers.is_none() {
         let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or_default();
         let wp = view.w(origin);
         let middle = resp.drag_started_by(PointerButton::Middle);
@@ -249,7 +259,7 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
     }
 
     // ---------------- dragging
-    if resp.dragged() {
+    if resp.dragged() && two_fingers.is_none() {
         if let Some(p) = ui.input(|i| i.pointer.latest_pos()) {
             let wp = view.w(p);
             let cmd = ui.input(|i| i.modifiers.command);
@@ -283,8 +293,9 @@ pub fn canvas(app: &mut App, ui: &mut Ui) {
             }
         }
     }
-    if resp.secondary_clicked() {
-        if let Some(p) = resp.interact_pointer_pos() {
+    // right click, or press and hold on a touch screen
+    if resp.secondary_clicked() || resp.long_touched() {
+        if let Some(p) = resp.interact_pointer_pos().or_else(|| ui.input(|i| i.pointer.latest_pos())) {
             match hit_test(app, &view, p) {
                 Hit::Shape(id) | Hit::Conn(id) => if !app.is_sel(id) { app.select_only(id); },
                 _ => {}
@@ -334,7 +345,7 @@ fn viewer_input(app: &mut App, ui: &mut Ui, resp: &egui::Response, view: &View) 
         let over_link = resp.hover_pos().and_then(|p| match hit_test(app, view, p) { Hit::Link(id) if app.link_target(id).is_some() => Some(id), _ => None });
         if over_link.is_some() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
         if resp.clicked() { match over_link { Some(id) => { app.open_link(id); if let Some(p) = app.present.as_mut() { p.step = (!app.doc.pages[app.pi].story.is_empty()).then_some(0); p.since = app.now; p.from = (Vec2::ZERO, 0.0); } } None => crate::present::go(app, 1) } }
-        if resp.secondary_clicked() { crate::present::go(app, -1); }
+        if resp.secondary_clicked() || resp.long_touched() { crate::present::go(app, -1); }
         return;
     }
     if resp.drag_started() {
